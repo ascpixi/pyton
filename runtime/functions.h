@@ -16,5 +16,5 @@
         int argc,               \
         pyobj_t** argv,         \
         int kwargc,             \
-        pyattribute_t* kwargv   \
+        symbol_t* kwargv   \
     )

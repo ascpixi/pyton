@@ -83,13 +83,13 @@ pyobj_t* py_get_attribute(pyobj_t* target, const char* name) {
 
     // This isn't any intrinsic type we recognize, so we assume that this is an object
     // with a user-defined type.
-    pyattribute_t* attributes = target->as_any;
-    while (attributes->name != NULL) {
-        if (rtl_strequ(attributes->name, name)) {
-            return attributes->value;
-        }
+    vector_t(symbol_t)* attributes = &target->as_any;
+    for (size_t i = 0; i < attributes->length; i++) {
+        symbol_t attribute = attributes->elements[i];
 
-        attributes++; // We iterate until name is NULL, which indicates that we reached the end
+        if (rtl_strequ(attribute.name, name)) {
+            return attribute.value;
+        }
     }
 
     return NULL;
@@ -101,7 +101,7 @@ pyobj_t* py_call(
     int argc,
     pyobj_t** argv,
     int kwargc,
-    pyattribute_t* kwargv
+    symbol_t* kwargv
 ) {
     ENSURE_NOT_NULL(target, "py_call");
 
