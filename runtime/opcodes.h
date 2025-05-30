@@ -22,6 +22,13 @@
         stack[stack_current++] = py_call(callable, self, $argc, call_argv, 0, NULL);    \
     }
 
+// Pops a value from the stack, and jumps to `$label` if the popped object has a boolean
+// value of `false`. Assumes that the object on the stack is an exact `bool` operand.
+// If the object is not of type `py_type_bool`, then the behavior is undefined.
+#define PY_OPCODE_POP_JUMP_IF_FALSE($label)                         \
+    if ( ((pyobj_t*)stack[stack_current--])->as_bool == false )     \
+        goto $label;                                                \
+
 // Equivalent to `right < left`, where `right` and `left` are placed on the stack.
 void py_opcode_compare_lt(void** stack, int* stack_current, bool coerce_to_bool);
 

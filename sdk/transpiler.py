@@ -81,10 +81,16 @@ class TranslationUnit:
                 body.append(f"pyobj_t* loc_{name} = NULL;")
 
         body.append("// (function body start)")
+        
+        # This maps label indices (instr.label) to offsets.
+        labels = sorted(dis.findlabels(fn.co_code))
 
         bytecode = dis.Bytecode(fn)
         for instr in bytecode:
             body.append(f"// {str(instr).strip()}")
+
+            if instr.label != None:
+                body.append(f"L{instr.label}:")
 
             # Important to mention: stack_current points to the stack slot that will be
             # popped next. When pushing, it needs to be incremented BEFORE writing to the
@@ -134,6 +140,9 @@ class TranslationUnit:
                     }[operation]
 
                     body.append(f"{opcode_fn_name}(&stack, &stack_current, {c_bool(coerce_bool)});")
+                case "POP_JUMP_IF_FALSE":
+                    target_label = [i + 1 for i, x in enumerate(labels) if x == instr.jump_target]
+                    body.append(f"PY_OPCODE_POP_JUMP_IF_FALSE(L{target_label});")
                 case _:
                     error(f"unknown opcode '{instr.opname}'!")
                     error(f"the full disassembly of the target function is displayed below")
