@@ -43,13 +43,6 @@ class TranslationUnit:
             ""
         ]
 
-        if is_entrypoint:
-            # If this function is the entry-point, locals are equivalent to globals.
-            body.append("vector_t(symbol_t)* locals = &py_globals;")
-        else:
-            body.append("vector_t(symbol_t) locals_store = {};")
-            body.append("vector_t(symbol_t)* locals = &locals_store;")
-
         body.append("")
         body.append("// (constants start)")
         for i, const in enumerate(fn.co_consts):
@@ -77,6 +70,13 @@ class TranslationUnit:
             
         body.append("// (constants end)")
         body.append("")
+
+        # We try to use local variables for actual locals if this isn't the entrypoint function.
+        # If it *is* the entrypoint function, then locals are equivalent to globals.
+        if not is_entrypoint:
+            for name in fn.co_names:
+                body.append(f"pyobj_t* loc_{name} = NULL;")
+
         body.append("// (function body start)")
 
         bytecode = dis.Bytecode(fn)
@@ -94,7 +94,14 @@ class TranslationUnit:
                     body.append("stack[++stack_current] = NULL;")
                 case "LOAD_NAME":
                     name = fn.co_names[instr.arg]
-                    body.append(f'stack[++stack_current] = py_resolve_symbol("{name}", locals);')
+
+                    if is_entrypoint:
+                        # Locals are equivalent to globals in the entrypoint.
+                        body.append(f'stack[++stack_current] = py_resolve_symbol("{name}");')
+                    else:
+                        # If loc_{name} is NULL, that means that the local of that name isn't defined, so we
+                        # search in the global symbol table and the builtins.
+                        body.append(f'stack[++stack_current] = loc_{name} != null ? loc_{name} : py_resolve_symbol("{name}");')
                 case "LOAD_CONST":
                     const = fn.co_consts[instr.arg]
                     body.append(f"stack[++stack_current] = &const_{instr.arg};");
@@ -104,9 +111,13 @@ class TranslationUnit:
                     body.append(f"stack_current--;")
                 case "RETURN_CONST":
                     body.append(f"return &const_{instr.arg};")
+                case "STORE_NAME":
+                    if is_entrypoint:
+                        body.append(f'py_assign_global("{fn.co_names[instr.arg]}", stack[stack_current--]);')
+                    else:
+                        body.append(f'loc_{fn.co_names[instr.arg]} = stack[stack_current--];')
                 case _:
                     error(f"unknown opcode '{instr.opname}'!")
-                    error(f"offending instruction: {instr._disassemble(offset_width = 0).strip()}")
                     error(f"the full disassembly of the target function is displayed below")
                     print(dis.dis(fn))
                     raise Exception(f"Unknown opcode: {instr.opname}")

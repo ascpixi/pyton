@@ -31,7 +31,7 @@ typedef struct vector_any { _VECTOR_FIELDS(void) } vector_any_t;
 // Appends a new element, expanding the vector if necessary.
 #define rtl_vector_append($vector, $element)                                         \
     {                                                                                \
-        __typeof__($element) element = $element;                                     \
+        __typeof__(($element)) element = ($element);                                 \
         rtl_vector_any_append(                                                       \
             (vector_any_t*)($vector),                                                \
             (unit_t) { .data = (void*)&element, .size = sizeof(element) }            \
