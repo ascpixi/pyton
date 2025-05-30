@@ -8,6 +8,7 @@
 // Represents a symbol - an object associated with a name. Symbols may represent attributes,
 // or be entries in symbol tables (e.g. `builtins` or `globals`).
 typedef struct symbol symbol_t;
+USES_VECTOR_FOR(symbol_t);
 
 // Represents any Python object.
 typedef struct pyobj pyobj_t;
@@ -52,12 +53,10 @@ struct pyobj {
 };
 
 // Represents a single entry in a symbol table.
-typedef struct symbol {
+struct symbol {
     pyobj_t* value;
     const char* name;
-} symbol_t;
-
-USES_VECTOR_FOR(symbol_t);
+};
 
 // The type that represents the `bool` Python class.
 extern const pyobj_t py_type_bool;

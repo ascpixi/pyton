@@ -86,6 +86,10 @@ class TranslationUnit:
         # This maps label indices (instr.label) to offsets.
         labels = sorted(dis.findlabels(fn.co_code))
 
+        def label_by_offset(offset: int):
+            "Gets the label at the given bytecode offset."
+            return next(f"L{i + 1}" for i, x in enumerate(labels) if x == offset)
+
         bytecode = dis.Bytecode(fn)
         for instr in bytecode:
             body.append(f"// {str(instr).strip()}")
@@ -142,8 +146,8 @@ class TranslationUnit:
 
                     body.append(f"{opcode_fn_name}(stack, &stack_current, {c_bool(coerce_bool)});")
                 case "POP_JUMP_IF_FALSE":
-                    target_label = [i + 1 for i, x in enumerate(labels) if x == instr.jump_target]
-                    body.append(f"PY_OPCODE_POP_JUMP_IF_FALSE(L{target_label});")
+                    target_label = label_by_offset(instr.jump_target)
+                    body.append(f"PY_OPCODE_POP_JUMP_IF_FALSE({target_label});")
                 case "BINARY_OP":
                     opcode_fn_name = {
                         NB_ADD: "py_opcode_op_add",
@@ -176,6 +180,8 @@ class TranslationUnit:
                     }[instr.arg]
 
                     body.append(f"{opcode_fn_name}(stack, &stack_current);")
+                case "JUMP_BACKWARD" | "JUMP_BACKWARD_NO_INTERRUPT":
+                    body.append(f"goto {label_by_offset(instr.jump_target)};")
                 case _:
                     error(f"unknown opcode '{instr.opname}'!")
                     error(f"the full disassembly of the target function is displayed below")

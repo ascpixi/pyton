@@ -8,7 +8,6 @@
 #define OPERATION_PROLOG                          \
     pyobj_t* right = stack[(*stack_current)--];   \
     pyobj_t* left = stack[(*stack_current)--];    \
-    pyobj_t* result;                              \
 
 #define BOTH_OF_TYPE($type) right->type == $type && left->type == $type
 

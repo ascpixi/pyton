@@ -8,7 +8,6 @@
 #define COMPARE_PROLOG                            \
     pyobj_t* right = stack[(*stack_current)--];   \
     pyobj_t* left = stack[(*stack_current)--];    \
-    pyobj_t* result;                              \
 
 #define BOTH_OF_TYPE($type) right->type == $type && left->type == $type
 
@@ -51,7 +50,7 @@ static bool arbitrary_compare(
 void py_opcode_compare_equ(void** stack, int* stack_current, bool coerce_to_bool) {
     COMPARE_PROLOG;
     INT_COMPARISON(==);
-    FLOAT_COMPARISON(==);
+    // FLOAT_COMPARISON(==);
 
     if (BOTH_OF_TYPE(&py_type_str)) {
         STACK_PUSH(AS_PY_BOOL(rtl_strequ(right->as_str, left->as_str)));
@@ -70,7 +69,7 @@ void py_opcode_compare_equ(void** stack, int* stack_current, bool coerce_to_bool
 void py_opcode_compare_neq(void** stack, int* stack_current, bool coerce_to_bool) {
     COMPARE_PROLOG;
     INT_COMPARISON(!=);
-    FLOAT_COMPARISON(!=);
+    // FLOAT_COMPARISON(!=);
 
     if (BOTH_OF_TYPE(&py_type_str)) {
         STACK_PUSH(AS_PY_BOOL(!rtl_strequ(right->as_str, left->as_str)));
