@@ -1,6 +1,8 @@
 #include "bootloader.h"
 
-#include "../lib/limine/limine.h"
+#include <limine/limine.h>
+#include "../rtl/safety.h"
+#include "core.h"
 
 // We currently use Limine as our bootloader. We may change this in the future.
 // The use of Limine is an implementation detail.
@@ -20,6 +22,12 @@ static volatile struct limine_memmap_request memmap_request = {
     .revision = 0
 };
 
+__attribute__((used, section(".limine_requests")))
+static volatile struct limine_framebuffer_request framebuffer_request = {
+    .id = LIMINE_FRAMEBUFFER_REQUEST,
+    .revision = 0
+};
+
 __attribute__((used, section(".limine_requests_start")))
 static volatile LIMINE_REQUESTS_START_MARKER;
 
@@ -27,12 +35,26 @@ __attribute__((used, section(".limine_requests_end")))
 static volatile LIMINE_REQUESTS_END_MARKER;
 
 size_t bl_get_hhdm_start() {
+    ENSURE_NOT_NULL(hhdm_request.response, "bl_get_hhdm_start");
+
     return (size_t)hhdm_request.response->offset;
 }
 
 span_t(bl_memmap_entry_t) bl_get_memmap() {
+    ENSURE_NOT_NULL(memmap_request.response, "bl_get_memmap");
+
     return (span_t(bl_memmap_entry_t)) {
         .entries = memmap_request.response->entries,
         .length = memmap_request.response->entry_count
     };
 }
+
+bl_framebuffer_t bl_get_framebuffer() {
+    ENSURE_NOT_NULL(framebuffer_request.response, "bl_get_framebuffer");
+
+    if (framebuffer_request.response->framebuffer_count == 0) {
+        sys_panic("There isn't an available framebuffer to use as a display surface.");
+    }
+
+    return framebuffer_request.response->framebuffers[0];
+} 

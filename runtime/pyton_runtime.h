@@ -5,3 +5,5 @@
 #include "objects.h"
 #include "symbols.h"
 #include "functions.h"
+#include "init.h"
+#include "opcodes.h"

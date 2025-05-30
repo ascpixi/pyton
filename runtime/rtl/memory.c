@@ -13,6 +13,15 @@ void* memcpy(void* restrict dest, const void* restrict src, size_t n) {
     return dest;
 }
 
+void* memset(void *dest, int val, size_t len) {
+    uint8_t* ptr = (uint8_t*)dest;
+    while (len-- > 0) {
+        *ptr++ = val;
+    }
+
+    return dest;
+}
+
 void rtl_memmove_back(void* target, size_t n, size_t offset) {
     uint8_t* dest = (uint8_t*)target - offset;
     uint8_t* src = (uint8_t*)target;

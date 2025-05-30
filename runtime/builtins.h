@@ -5,6 +5,6 @@
 #include "objects.h"
 
 // A list of all built-in symbols. This is constant, and does not change.
-extern const symbol_t py_builtins[];
+extern const symbol_t py_builtins[1];
 
 PY_DEFINE(py_builtin_print);

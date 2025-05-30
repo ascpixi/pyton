@@ -15,6 +15,9 @@
 // variant of `vector_t(T)` and is equivalent in structure to `vector_t(void)`.
 typedef struct vector_any { _VECTOR_FIELDS(void) } vector_any_t;
 
+// Declares that the given translation unit will use a `vector_t(T)` structure.
+#define USES_VECTOR_FOR(T) struct vector_##T { _VECTOR_FIELDS(T) }
+
 // Represents a vector that holds elements of type `T`.
 // Usage:
 // ```
@@ -23,7 +26,7 @@ typedef struct vector_any { _VECTOR_FIELDS(void) } vector_any_t;
 //      rtl_vector_append(&vec, 2);
 //      printf(vec.elements[0]); // prints 1
 // ```
-#define vector_t(T) struct vector_##T## { _VECTOR_FIELDS(T) }
+#define vector_t(T) struct vector_##T
 
 // Appends a new element, expanding the vector if necessary.
 #define rtl_vector_append($vector, $element)                                         \

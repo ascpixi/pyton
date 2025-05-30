@@ -1,5 +1,5 @@
 #include "objects.h"
-#include "stringop.h"
+#include "rtl/stringop.h"
 #include "sys/core.h"
 
 #define INTRINSIC_TYPE(name) { .type = &py_type_type, .as_typename = name }
@@ -84,12 +84,14 @@ pyobj_t* py_get_attribute(pyobj_t* target, const char* name) {
     // with a user-defined type.
     pyattribute_t* attributes = target->as_any;
     while (attributes->name != NULL) {
-        if (streq(attributes->name, name)) {
+        if (rtl_strequ(attributes->name, name)) {
             return attributes->value;
         }
 
         attributes++; // We iterate until name is NULL, which indicates that we reached the end
     }
+
+    return NULL;
 }
 
 pyobj_t* py_call(
@@ -114,4 +116,5 @@ pyobj_t* py_call(
 
     // TODO: Raise a `TypeError: '...' object is not callable` exception instead of panicking here.
     sys_panic("attempted to call a non-callable object");
+    return NULL;
 }

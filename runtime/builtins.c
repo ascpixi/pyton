@@ -1,7 +1,23 @@
 #include "builtins.h"
 
-const symbol_t py_builtins[] = {
-    { .name = "print", .address = &py_builtin_print }
+#include "sys/core.h"
+#include "sys/terminal.h"
+
+// Returns the name of the callable object that wraps over the function `$fn`.
+#define FUNCTION_WRAPPER($fn) $fn##_object
+
+// Defines a fixed callable object that wraps over the function `$fn`. To reference
+// this object, use `FUNCTION_WRAPPER($fn)`.
+#define DEFINE_FUNCTION_WRAPPER($fn)                  \
+    static const pyobj_t FUNCTION_WRAPPER($fn) = {    \
+        .type = &py_type_callable,                    \
+        .as_callable = &$fn                           \
+    }                                                 \
+
+DEFINE_FUNCTION_WRAPPER(py_builtin_print);
+
+const symbol_t py_builtins[1] = {
+    { .name = "print", .value = &FUNCTION_WRAPPER(py_builtin_print) }
 };
 
 PY_DEFINE(py_builtin_print) {
@@ -10,7 +26,21 @@ PY_DEFINE(py_builtin_print) {
     // TODO: Fully featured print()
 
     if (argc == 0) {
-        // New-line
-        
+        terminal_newline();
+        return &py_none;
     }
+
+    if (argc != 1) {
+        // TODO: print() can accept any number of arguments.
+        sys_panic("More than one argument is not yet supported for print().");
+    }
+
+    pyobj_t* value = argv[0];
+    if (value->type != &py_type_str) {
+        // TODO: Any kind of object should be accepted here.
+        sys_panic("Expected a 'str' argument for print().");
+    }
+
+    terminal_println(value->as_str);
+    return &py_none;
 }

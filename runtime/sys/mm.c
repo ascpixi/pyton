@@ -3,14 +3,13 @@
 #include <stdbool.h>
 #include "bootloader.h"
 #include "core.h"
-#include "../rtl/math.h"
-#include "../rtl/safety.h"
+#include "rtl/safety.h"
 
 static bool mm_was_initialized;
 
 // Represents a single entry in the page free-list.
 typedef struct mm_freelist_entry {
-    mm_freelist_entry_t* next;
+    struct mm_freelist_entry* next;
 } mm_freelist_entry_t;
 
 // A pointer to the next available page in the free-list.
