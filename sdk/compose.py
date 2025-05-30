@@ -1,5 +1,7 @@
 import os
 import glob
+import shutil
+from .util import copy_many
 from subprocess import run
 
 def path_to_libname(path: str):
@@ -7,6 +9,18 @@ def path_to_libname(path: str):
     return os.path.splitext(
         path.replace("/", "_").replace("\\", "_")
     )[0]
+
+COMMON_GCC_FLAGS = [
+    "-fno-stack-protector",
+    "-fno-stack-check",
+    "-mno-80387",
+    "-mno-mmx",
+    "-mno-sse",
+    "-mno-sse2",
+    "-ffreestanding",
+    "-nostdlib",
+    "-g"
+]
 
 def compile_runtime(output_path: str, root: str, libc_headers_root: str, lib_headers: str):
     """
@@ -31,8 +45,7 @@ def compile_runtime(output_path: str, root: str, libc_headers_root: str, lib_hea
             "-masm=intel",
             "-O2",
             "-m64",
-            "-ffreestanding", "-nostdlib",
-            "-mno-red-zone",
+            *COMMON_GCC_FLAGS,
             "-I", root,
             "-isystem", libc_headers_root,
             "-isystem", lib_headers,
@@ -72,19 +85,11 @@ def compile_and_link(
         "-Wextra",
         "-std=gnu17",
         "-nostdinc",
-        "-ffreestanding",
-        "-fno-stack-protector",
-        "-fno-stack-check",
-        "-fno-PIC",
         "-ffunction-sections",
         "-fdata-sections",
         "-m64",
-        "-march=x86-64",
-        "-mno-80387",
-        "-mno-mmx",
-        "-mno-sse",
-        "-mno-sse2",
-        "-mno-red-zone",
+        "-fno-PIC",
+        *COMMON_GCC_FLAGS,
         "-mcmodel=kernel",
         "-isystem", runtime_root,
         "-isystem", libc_headers_root,
@@ -95,7 +100,7 @@ def compile_and_link(
         "-c",
         filename,
         "-o", kernel_obj_file
-    ]).check_returncode()
+    ], check = True)
 
     dependencies = [
         "flanterm/flanterm.c",
@@ -115,8 +120,7 @@ def compile_and_link(
             "-masm=intel",
             "-O2",
             "-m64",
-            "-ffreestanding", "-nostdlib",
-            "-mno-red-zone",
+            *COMMON_GCC_FLAGS,
             "-isystem", libc_headers_root,
             "-c",
             os.path.join(lib_path, dep),
@@ -134,6 +138,7 @@ def compile_and_link(
         "-Wl,--build-id=none",
         "-nostdlib",
         "-static",
+        "-g",
         "-z", "max-page-size=0x1000",
         "-Wl,--gc-sections",
         "-T", os.path.join(runtime_root, "linker.ld"),
@@ -141,8 +146,60 @@ def compile_and_link(
         kernel_obj_file,
         runtime_obj_file,
         "-o", kernel_binary
-    ]).check_returncode()
+    ], check = True)
 
     print(f"(ok) kernel linked! binary was placed in {kernel_binary}")
 
     return os.path.abspath(kernel_binary)
+
+def create_iso(
+    kernel_binary: str,
+    iso_template: str,
+    root: str,
+    limine_repo: str,
+    output_path: str,
+):
+    print("(...) creating ISO...")
+    if os.path.exists(root):
+        shutil.rmtree(root)
+
+    # copy all pre-defined template files (e.g. limine configuration)
+    shutil.copytree(iso_template, root)
+
+    # these files are dynamically generated, so they cannot be included in the template
+    copy_many(root, [
+        (kernel_binary, "boot/kernel.elf"),
+        (os.path.join(limine_repo, "limine-bios.sys"), "boot/limine/limine-bios.sys"),
+        (os.path.join(limine_repo, "limine-bios-cd.bin"), "boot/limine/limine-bios-cd.bin"),
+        (os.path.join(limine_repo, "limine-uefi-cd.bin"), "boot/limine/limine-uefi-cd.bin"),
+        (os.path.join(limine_repo, "BOOTX64.EFI"), "EFI/BOOT/BOOTX64.EFI"),
+        (os.path.join(limine_repo, "BOOTIA32.EFI"), "EFI/BOOT/BOOTIA32.EFI"),
+    ])
+
+    print("(...) - creating base ISO")
+    run([
+        "xorriso",
+        "-as", "mkisofs",
+        "-R", "-r",
+        "-J",
+        "-b","boot/limine/limine-bios-cd.bin",
+        "-no-emul-boot",
+        "-boot-load-size", "4",
+        "-boot-info-table",
+        "-hfsplus",
+        "-apm-block-size", "2048",
+        "--efi-boot", "boot/limine/limine-uefi-cd.bin",
+        "-efi-boot-part",
+        "--efi-boot-image",
+        "--protective-msdos-label",
+        root,
+        "-o", output_path
+    ], check = True)
+
+    print("(...) - building Limine boot utility")
+    run("make", cwd = limine_repo, check = True)
+
+    print("(...) - making ISO BIOS-bootable")
+    run([os.path.join(limine_repo, "limine"), "bios-install", output_path])
+
+    print(f"(ok!) ISO file created at {output_path}!")

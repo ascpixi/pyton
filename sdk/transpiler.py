@@ -83,17 +83,21 @@ class TranslationUnit:
         for instr in bytecode:
             body.append(f"// {str(instr).strip()}")
 
+            # Important to mention: stack_current points to the stack slot that will be
+            # popped next. When pushing, it needs to be incremented BEFORE writing to the
+            # slot.
+
             match instr.opname:
                 case "RESUME":
                     pass # no-op
                 case "PUSH_NULL":
-                    body.append("stack[stack_current++] = NULL;")
+                    body.append("stack[++stack_current] = NULL;")
                 case "LOAD_NAME":
                     name = fn.co_names[instr.arg]
-                    body.append(f'stack[stack_current++] = py_resolve_symbol("{name}", locals);')
+                    body.append(f'stack[++stack_current] = py_resolve_symbol("{name}", locals);')
                 case "LOAD_CONST":
                     const = fn.co_consts[instr.arg]
-                    body.append(f"stack[stack_current++] = &const_{instr.arg};");
+                    body.append(f"stack[++stack_current] = &const_{instr.arg};");
                 case "CALL":
                     body.append(f"PY_OPCODE_CALL({instr.arg});")
                 case "POP_TOP":

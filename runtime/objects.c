@@ -1,5 +1,6 @@
 #include "objects.h"
 #include "rtl/stringop.h"
+#include "rtl/safety.h"
 #include "sys/core.h"
 
 #define INTRINSIC_TYPE(name) { .type = &py_type_type, .as_typename = name }
@@ -102,6 +103,8 @@ pyobj_t* py_call(
     int kwargc,
     pyattribute_t* kwargv
 ) {
+    ENSURE_NOT_NULL(target, "py_call");
+
     if (target->type == &py_type_callable) {
         // This would be either 'function', 'method', or 'builtin_function_or_method' in CPython.
         return target->as_callable(self, argc, argv, kwargc, kwargv);

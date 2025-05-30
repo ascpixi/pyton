@@ -6,7 +6,7 @@ if sys.version_info < (3, 13, 0):
 import os
 import argparse
 from sdk.transpiler import TranslationUnit
-from sdk.compose import compile_and_link
+from sdk.compose import compile_and_link, create_iso
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-i", "--input", type=str, help="the main entry-point file")
@@ -23,13 +23,24 @@ transpiled = transpiler.transpile()
 
 os.makedirs(args.artifacts, exist_ok = True)
 
-kernel_source_file = os.path.join(args.artifacts, "kernel.c")
+kernel_name = os.path.splitext(os.path.basename(args.input))[0]
+kernel_source_file = os.path.join(args.artifacts, f"{kernel_name}.c")
 open(kernel_source_file, "w").write(transpiled)
 
-compile_and_link(
+kernel_binary = compile_and_link(
     kernel_source_file,
     "./runtime",
     "./lib/freestnd-c-hdrs",
     "./lib",
     args.artifacts
+)
+
+tmp_iso_root = os.path.join(args.artifacts, "obj", "iso")
+
+create_iso(
+    kernel_binary,
+    "./resource/iso",
+    tmp_iso_root,
+    "./lib/limine",
+    os.path.join(args.artifacts, f"{kernel_name}.iso")
 )
