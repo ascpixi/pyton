@@ -1,0 +1,6 @@
+[submodule "runtime/lib/flanterm"]
+	path = runtime/lib/flanterm
+	url = https://codeberg.org/mintsuki/flanterm.git
+[submodule "runtime/lib/limine"]
+	path = runtime/lib/limine
+	url = https://github.com/limine-bootloader/limine.git
