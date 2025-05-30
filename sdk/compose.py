@@ -106,7 +106,7 @@ def compile_and_link(
 
     print(f"(0/{len(dependencies)}) compiling dependencies...")
     for i, dep in enumerate(dependencies):
-        out_path = os.path.join(obj_dir, path_to_libname(dep))
+        out_path = os.path.join(obj_dir, path_to_libname(dep) + ".o")
         
         print(f"({i}/{len(dependencies)}) {dep} -> {out_path}")
         run([
