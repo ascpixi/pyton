@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "rtl/vector.h"
+#include "sys/mm.h"
 
 // Represents a symbol - an object associated with a name. Symbols may represent attributes,
 // or be entries in symbol tables (e.g. `builtins` or `globals`).
@@ -101,10 +102,26 @@ extern const pyobj_t py_true;
 // Represents `False`. This object always has the type of `py_type_bool` (`bool`).
 extern const pyobj_t py_false;
 
-// Returns `py_true` if `x` evaluates to `true`, and `py_false` otherwise.
-#define AS_PY_BOOL(x) ((x) ? &py_true : &py_false)
+// Returns `py_true` if `$x` evaluates to `true`, and `py_false` otherwise.
+#define AS_PY_BOOL($x) (($x) ? &py_true : &py_false)
 
-#define AS_PY_INT(x) 
+// Converts a C integer into a Python one, allocating it on the heap.
+#define ALLOC_PY_INT($x)                                \
+    ({                                                  \
+        pyobj_t* obj = mm_heap_alloc(sizeof(pyobj_t));  \
+        obj->type = &py_type_int;                       \
+        obj->as_int = $x;                               \
+        obj;                                            \
+    })
+
+// Allocates an arbitrary non-intrinsic Python object with the given type.
+#define ALLOC_PY_OBJECT($type)                          \
+    ({                                                  \
+        pyobj_t* obj = mm_heap_alloc(sizeof(pyobj_t));  \
+        obj->type = $type;                              \
+        obj->as_any = {};                               \
+        obj                                             \
+    })
 
 // Attempts to call the given object, assuming it is callable. This function succeeds when
 // target is either of type `py_type_builtin_callable`, or when it contains a `__call__` attribute.

@@ -3,6 +3,7 @@ import dis
 import textwrap
 from types import CodeType
 
+from .bytecode import *
 from .util import error
 
 def c_bool(x: bool):
@@ -139,10 +140,42 @@ class TranslationUnit:
                         ">=": "py_opcode_compare_gte"
                     }[operation]
 
-                    body.append(f"{opcode_fn_name}(&stack, &stack_current, {c_bool(coerce_bool)});")
+                    body.append(f"{opcode_fn_name}(stack, &stack_current, {c_bool(coerce_bool)});")
                 case "POP_JUMP_IF_FALSE":
                     target_label = [i + 1 for i, x in enumerate(labels) if x == instr.jump_target]
                     body.append(f"PY_OPCODE_POP_JUMP_IF_FALSE(L{target_label});")
+                case "BINARY_OP":
+                    opcode_fn_name = {
+                        NB_ADD: "py_opcode_op_add",
+                        NB_AND: "py_opcode_op_and",
+                        NB_FLOOR_DIVIDE: "py_opcode_op_floordiv",
+                        NB_LSHIFT: "py_opcode_op_lsh",
+                        NB_MATRIX_MULTIPLY: "py_opcode_op_matmul",
+                        NB_MULTIPLY: "py_opcode_op_mul",
+                        NB_REMAINDER: "py_opcode_op_rem",
+                        NB_OR: "py_opcode_op_or",
+                        NB_POWER: "py_opcode_op_pow",
+                        NB_RSHIFT: "py_opcode_op_rsh",
+                        NB_SUBTRACT: "py_opcode_op_sub",
+                        NB_TRUE_DIVIDE: "py_opcode_op_floordiv", # TODO!
+                        NB_XOR: "py_opcode_op_xor",
+                        NB_INPLACE_ADD: "py_opcode_op_iadd",
+                        NB_INPLACE_AND: "py_opcode_op_iand",
+                        NB_INPLACE_FLOOR_DIVIDE: "py_opcode_op_ifloordiv",
+                        NB_INPLACE_LSHIFT: "py_opcode_op_ilsh",
+                        NB_INPLACE_MATRIX_MULTIPLY: "py_opcode_op_imatmul",
+                        NB_INPLACE_MULTIPLY: "py_opcode_op_imul",
+                        NB_INPLACE_REMAINDER: "py_opcode_op_irem",
+                        NB_INPLACE_OR: "py_opcode_op_ior",
+                        NB_INPLACE_POWER: "py_opcode_op_ipow",
+                        NB_INPLACE_RSHIFT: "py_opcode_op_irsh",
+                        NB_INPLACE_SUBTRACT: "py_opcode_op_isub",
+                        NB_INPLACE_TRUE_DIVIDE: "py_opcode_op_ifloordiv", # TODO!!
+                        NB_INPLACE_XOR: "py_opcode_op_ixor",
+                        NB_SUBSCR: "py_opcode_op_subscr"
+                    }[instr.arg]
+
+                    body.append(f"{opcode_fn_name}(stack, &stack_current);")
                 case _:
                     error(f"unknown opcode '{instr.opname}'!")
                     error(f"the full disassembly of the target function is displayed below")

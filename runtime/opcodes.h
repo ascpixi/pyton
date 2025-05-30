@@ -29,6 +29,8 @@
     if ( ((pyobj_t*)stack[stack_current--])->as_bool == false )     \
         goto $label;                                                \
 
+// The following functions are implemented in 'opcodes_cmp.c'.
+
 // Equivalent to `right < left`, where `right` and `left` are placed on the stack.
 void py_opcode_compare_lt(void** stack, int* stack_current, bool coerce_to_bool);
 
@@ -46,3 +48,80 @@ void py_opcode_compare_gt(void** stack, int* stack_current, bool coerce_to_bool)
 
 // Equivalent to `right >= left`, where `right` and `left` are placed on the stack.
 void py_opcode_compare_gte(void** stack, int* stack_current, bool coerce_to_bool);
+
+// The following functions are implemented in 'opcodes_op.c'.
+
+// Equivalent to `right + left`, where `right` and `left` are placed on the stack.
+void py_opcode_op_add(void** stack, int* stack_current);
+
+// Equivalent to `right & left`, where `right` and `left` are placed on the stack.
+void py_opcode_op_and(void** stack, int* stack_current);
+
+// Equivalent to `right // left`, where `right` and `left` are placed on the stack.
+void py_opcode_op_floordiv(void** stack, int* stack_current);
+
+// Equivalent to `right << left`, where `right` and `left` are placed on the stack.
+void py_opcode_op_lsh(void** stack, int* stack_current);
+
+// Equivalent to `right @ left`, where `right` and `left` are placed on the stack.
+void py_opcode_op_matmul(void** stack, int* stack_current);
+
+// Equivalent to `right * left`, where `right` and `left` are placed on the stack.
+void py_opcode_op_mul(void** stack, int* stack_current);
+
+// Equivalent to `right % left`, where `right` and `left` are placed on the stack.
+void py_opcode_op_rem(void** stack, int* stack_current);
+
+// Equivalent to `right | left`, where `right` and `left` are placed on the stack.
+void py_opcode_op_or(void** stack, int* stack_current);
+
+// Equivalent to `right ** left`, where `right` and `left` are placed on the stack.
+void py_opcode_op_pow(void** stack, int* stack_current);
+
+// Equivalent to `right >> left`, where `right` and `left` are placed on the stack.
+void py_opcode_op_rsh(void** stack, int* stack_current);
+
+// Equivalent to `right - left`, where `right` and `left` are placed on the stack.
+void py_opcode_op_sub(void** stack, int* stack_current);
+
+// Equivalent to `right ^ left`, where `right` and `left` are placed on the stack.
+void py_opcode_op_xor(void** stack, int* stack_current);
+
+// Equivalent to `right += left`, where `right` and `left` are placed on the stack.
+void py_opcode_op_iadd(void** stack, int* stack_current);
+
+// Equivalent to `right &= left`, where `right` and `left` are placed on the stack.
+void py_opcode_op_iand(void** stack, int* stack_current);
+
+// Equivalent to `right //= left`, where `right` and `left` are placed on the stack.
+void py_opcode_op_ifloordiv(void** stack, int* stack_current);
+
+// Equivalent to `right <<= left`, where `right` and `left` are placed on the stack.
+void py_opcode_op_ilsh(void** stack, int* stack_current);
+
+// Equivalent to `right @= left`, where `right` and `left` are placed on the stack.
+void py_opcode_op_imatmul(void** stack, int* stack_current);
+
+// Equivalent to `right *= left`, where `right` and `left` are placed on the stack.
+void py_opcode_op_imul(void** stack, int* stack_current);
+
+// Equivalent to `right %= left`, where `right` and `left` are placed on the stack.
+void py_opcode_op_irem(void** stack, int* stack_current);
+
+// Equivalent to `right |= left`, where `right` and `left` are placed on the stack.
+void py_opcode_op_ior(void** stack, int* stack_current);
+
+// Equivalent to `right **= left`, where `right` and `left` are placed on the stack.
+void py_opcode_op_ipow(void** stack, int* stack_current);
+
+// Equivalent to `right >>= left`, where `right` and `left` are placed on the stack.
+void py_opcode_op_irsh(void** stack, int* stack_current);
+
+// Equivalent to `right -= left`, where `right` and `left` are placed on the stack.
+void py_opcode_op_isub(void** stack, int* stack_current);
+
+// Equivalent to `right ^= left`, where `right` and `left` are placed on the stack.
+void py_opcode_op_ixor(void** stack, int* stack_current);
+
+// Equivalent to `right[left]`, where `right` and `left` are placed on the stack.
+void py_opcode_op_subscr(void** stack, int* stack_current);

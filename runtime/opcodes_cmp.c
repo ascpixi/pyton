@@ -32,14 +32,14 @@ static bool arbitrary_compare(
     pyobj_t* left
 ) {
     pyobj_t* compare_fn = py_get_attribute(right, attr_name);
-    if (compare_fn != NULL) {
+    if (compare_fn != NULL && compare_fn->type == &py_type_callable) {
         pyobj_t* args[] = { left };
         STACK_PUSH(compare_fn->as_callable(right, 1, args, 0, NULL));
         return true;
     }
 
     compare_fn = py_get_attribute(left, attr_name);
-    if (compare_fn != NULL) {
+    if (compare_fn != NULL && compare_fn->type == &py_type_callable) {
         pyobj_t* args[] = { right };
         STACK_PUSH(compare_fn->as_callable(left, 1, args, 0, NULL));
         return true;
