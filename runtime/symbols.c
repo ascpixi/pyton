@@ -7,6 +7,6 @@ const symbol_t py_builtins[] = {
 
 vector_t(symbol_t) py_globals;
 
-void* py_resolve_symbol(const char* name) {
+void* py_resolve_symbol(const char* name, vector_t(symbol_t) locals) {
 
 }
