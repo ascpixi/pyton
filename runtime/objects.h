@@ -97,6 +97,9 @@ extern const pyobj_t py_true;
 // Represents `False`. This object always has the type of `py_type_bool` (`bool`).
 extern const pyobj_t py_false;
 
+// Returns `py_true` if `x` evaluates to `true`, and `py_false` otherwise.
+#define AS_PY_BOOL(x) ((x) ? &py_true : &py_false)
+
 // Attempts to call the given object, assuming it is callable. This function succeeds when
 // target is either of type `py_type_builtin_callable`, or when it contains a `__call__` attribute.
 pyobj_t* py_call(

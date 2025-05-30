@@ -21,3 +21,21 @@
         pyobj_t* callable = stack[stack_current--];                                     \
         stack[stack_current++] = py_call(callable, self, $argc, call_argv, 0, NULL);    \
     }
+
+// Equivalent to `right < left`, where `right` and `left` are placed on the stack.
+void py_opcode_compare_lt(void** stack, int* stack_current, bool coerce_to_bool);
+
+// Equivalent to `right <= left`, where `right` and `left` are placed on the stack.
+void py_opcode_compare_lte(void** stack, int* stack_current, bool coerce_to_bool);
+
+// Equivalent to `right == left`, where `right` and `left` are placed on the stack.
+void py_opcode_compare_equ(void** stack, int* stack_current, bool coerce_to_bool);
+
+// Equivalent to `right != left`, where `right` and `left` are placed on the stack.
+void py_opcode_compare_neq(void** stack, int* stack_current, bool coerce_to_bool);
+
+// Equivalent to `right > left`, where `right` and `left` are placed on the stack.
+void py_opcode_compare_gt(void** stack, int* stack_current, bool coerce_to_bool);
+
+// Equivalent to `right >= left`, where `right` and `left` are placed on the stack.
+void py_opcode_compare_gte(void** stack, int* stack_current, bool coerce_to_bool);

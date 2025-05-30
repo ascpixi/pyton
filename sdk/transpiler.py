@@ -5,6 +5,9 @@ from types import CodeType
 
 from .util import error
 
+def c_bool(x: bool):
+    return "true" if x else "false"
+
 class TranslationUnit:
     """
     Represents a single translation unit, which contains C function bodies that
@@ -116,6 +119,21 @@ class TranslationUnit:
                         body.append(f'py_assign_global("{fn.co_names[instr.arg]}", stack[stack_current--]);')
                     else:
                         body.append(f'loc_{fn.co_names[instr.arg]} = stack[stack_current--];')
+                case "COMPARE_OP":
+                    # left operand is first popped value, right operand is second popped value
+                    operation = dis.cmp_op[instr.arg >> 5]
+                    coerce_bool = (instr.arg & 16) != 0 # fifth lowest bit
+
+                    opcode_fn_name = {
+                        "<": "py_opcode_compare_lt",
+                        "<=": "py_opcode_compare_lte",
+                        "==": "py_opcode_compare_equ",
+                        "!=": "py_opcode_compare_neq",
+                        ">": "py_opcode_compare_gt",
+                        ">=": "py_opcode_compare_gte"
+                    }[operation]
+
+                    body.append(f"{opcode_fn_name}(&stack, &stack_current, {c_bool(coerce_bool)});")
                 case _:
                     error(f"unknown opcode '{instr.opname}'!")
                     error(f"the full disassembly of the target function is displayed below")
