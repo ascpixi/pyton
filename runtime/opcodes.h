@@ -19,7 +19,7 @@
                                                                                         \
         pyobj_t* self = stack[stack_current--];                                         \
         pyobj_t* callable = stack[stack_current--];                                     \
-        stack[stack_current++] = py_call(callable, self, $argc, call_argv, 0, NULL);    \
+        stack[++stack_current] = py_call(callable, self, $argc, call_argv, 0, NULL);    \
     }
 
 // Pops a value from the stack, and jumps to `$label` if the popped object has a boolean
