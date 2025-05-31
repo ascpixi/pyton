@@ -6,8 +6,8 @@
 #define STACK_PUSH(x) stack[++(*stack_current)] = (x)
 
 #define COMPARE_PROLOG                            \
-    pyobj_t* right = stack[(*stack_current)--];   \
     pyobj_t* left = stack[(*stack_current)--];    \
+    pyobj_t* right = stack[(*stack_current)--];   \
 
 #define BOTH_OF_TYPE($type) right->type == $type && left->type == $type
 
