@@ -16,12 +16,12 @@ static pyobj_t* py_find_symbol(const char* name, const symbol_t* symbols, int sy
     return NULL;
 }
 
-pyobj_t* py_resolve_symbol(const char* name) {
-    return COALESCE_2(
-        py_find_symbol(name, py_globals.elements, py_globals.length),
-        py_find_symbol(name, py_builtins, LENGTH_OF(py_builtins))
-    );
-}
+// pyobj_t* py_resolve_symbol(const char* name) {
+//     return COALESCE_2(
+//         py_find_symbol(name, py_globals.elements, py_globals.length),
+//         py_find_symbol(name, py_builtins, LENGTH_OF(py_builtins))
+//     );
+// }
 
 void py_assign_global(const char* name, pyobj_t* value) {
     for (size_t i = 0; i < (size_t)py_globals.length; i++) {

@@ -8,17 +8,14 @@
 
 // Defines a fixed callable object that wraps over the function `$fn`. To reference
 // this object, use `FUNCTION_WRAPPER($fn)`.
-#define DEFINE_FUNCTION_WRAPPER($fn)                  \
-    static const pyobj_t FUNCTION_WRAPPER($fn) = {    \
-        .type = &py_type_callable,                    \
-        .as_callable = &$fn                           \
-    }                                                 \
+#define DEFINE_FUNCTION_WRAPPER($fn, $global_name)                       \
+    static const pyobj_t FUNCTION_WRAPPER($fn) = {                       \
+        .type = &py_type_callable,                                       \
+        .as_callable = &$fn                                              \
+    };                                                                   \
+    const pyobj_t* KNOWN_GLOBAL($global_name) = &FUNCTION_WRAPPER($fn);  \
 
-DEFINE_FUNCTION_WRAPPER(py_builtin_print);
-
-const symbol_t py_builtins[1] = {
-    { .name = "print", .value = &FUNCTION_WRAPPER(py_builtin_print) }
-};
+DEFINE_FUNCTION_WRAPPER(py_builtin_print, print);
 
 PY_DEFINE(py_builtin_print) {
     // Do note, we only expect one string argument - but the actual print() function

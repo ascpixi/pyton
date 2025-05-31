@@ -9,6 +9,9 @@ from .util import error
 def c_bool(x: bool):
     return "true" if x else "false"
 
+def sanitize_identifier(x: str):
+    return re.sub(r"[^_A-Za-z0-9]", "__", x)
+
 class TranslationUnit:
     """
     Represents a single translation unit, which contains C function bodies that
@@ -22,8 +25,14 @@ class TranslationUnit:
         self.entrypoint: str | None = None
         "The mangled name of the function that is the entrypoint (main function) of the kernel."
 
+        self.known_names: set[str] = set()
+        "Stores all known names that may be either globals or locals."
+
     def mangle(self, fn: CodeType):
-        return "pyfn__" + re.sub(r"[^_A-Za-z0-9]", "__", fn.co_qualname)
+        return "pyfn__" + sanitize_identifier(fn.co_qualname)
+    
+    def mangle_global(self, name: str):
+        return "pyglobal__" + sanitize_identifier(name)
 
     def translate(self, fn: CodeType, is_entrypoint = False):
         """
@@ -42,9 +51,8 @@ class TranslationUnit:
 
         body = [
             f"// Function {fn.co_qualname}, declared on line {fn.co_firstlineno}",
-            f"void* stack[{fn.co_stacksize + 1}];",
-            f"int stack_current = -1;",
-            ""
+            f"void* stack[{fn.co_stacksize + 1}] = {{}};",
+            f"int stack_current = -1;"
         ]
 
         body.append("")
@@ -81,6 +89,16 @@ class TranslationUnit:
             for name in fn.co_names:
                 body.append(f"pyobj_t* loc_{name} = NULL;")
 
+        # All names might be global. For example:
+        #   def ex():
+        #       print(a)
+        #       a = 2
+        #       print(a)
+        # First, "a" would be found in the global symbol table and printed out. Then, it
+        # would get defined in the local symbol table, and we'd print the local instead.
+        for name in fn.co_names:
+            self.known_names.add(name)
+
         body.append("// (function body start)")
         
         # This maps label indices (instr.label) to offsets.
@@ -111,11 +129,11 @@ class TranslationUnit:
 
                     if is_entrypoint:
                         # Locals are equivalent to globals in the entrypoint.
-                        body.append(f'stack[++stack_current] = py_resolve_symbol("{name}");')
+                        body.append(f'stack[++stack_current] = {self.mangle_global(name)};')
                     else:
                         # If loc_{name} is NULL, that means that the local of that name isn't defined, so we
                         # search in the global symbol table and the builtins.
-                        body.append(f'stack[++stack_current] = loc_{name} != null ? loc_{name} : py_resolve_symbol("{name}");')
+                        body.append(f'stack[++stack_current] = loc_{name} != null ? loc_{name} : {self.mangle_global(name)}')
                 case "LOAD_CONST":
                     const = fn.co_consts[instr.arg]
                     body.append(f"stack[++stack_current] = &const_{instr.arg};");
@@ -126,8 +144,10 @@ class TranslationUnit:
                 case "RETURN_CONST":
                     body.append(f"return &const_{instr.arg};")
                 case "STORE_NAME":
+                    name = fn.co_names[instr.arg]
+
                     if is_entrypoint:
-                        body.append(f'py_assign_global("{fn.co_names[instr.arg]}", stack[stack_current--]);')
+                        body.append(f'{self.mangle_global(name)} = stack[stack_current--];')
                     else:
                         body.append(f'loc_{fn.co_names[instr.arg]} = stack[stack_current--];')
                 case "COMPARE_OP":
@@ -218,8 +238,15 @@ class TranslationUnit:
         for fn_name in self.transpiled.keys():
             lines.append(f"PY_DEFINE({fn_name});")
 
-        if self.entrypoint is not None:
+        lines.append("")
+        lines.append("// Known global names")
+        for name in self.known_names:
+            lines.append(f"#ifndef PY_GLOBAL_{sanitize_identifier(name)}_WELLKNOWN")
+            lines.append(f"    pyobj_t* {self.mangle_global(name)} = NULL; // global '{name}'")
+            lines.append(f"#endif")
             lines.append("")
+
+        if self.entrypoint is not None:
             lines.append(f"DEFINE_ENTRYPOINT({self.entrypoint});")
             lines.append("")
 
