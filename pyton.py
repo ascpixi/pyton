@@ -1,6 +1,6 @@
 import sys
 if sys.version_info < (3, 13, 0):
-    print("Python >=3.13 is required to run POSOS.")
+    print("Python >=3.13 is required to run Pyton.")
     exit(1)
 
 import os
