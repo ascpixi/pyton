@@ -10,3 +10,9 @@ void sys_init(void) {
     terminal_println("Pyton 0.0.1 on bare metal");
     terminal_println("All systems nominal");
 }
+
+void sys_deinit() {
+    terminal_println("Script finished running.");
+
+    while (true) {}
+}
