@@ -2,6 +2,7 @@ import re
 import dis
 import textwrap
 from types import CodeType
+from typing import Protocol
 
 from .bytecode import *
 from .util import error
@@ -11,6 +12,13 @@ def c_bool(x: bool):
 
 def sanitize_identifier(x: str):
     return re.sub(r"[^_A-Za-z0-9]", "__", x)
+
+class ExceptionTableEntry(Protocol):
+    start: int
+    end: int
+    target: int
+    depth: int
+    lasti: bool
 
 class TranslationUnit:
     """
@@ -111,11 +119,24 @@ class TranslationUnit:
             return next(f"L{i + 1}" for i, x in enumerate(labels) if x == offset)
 
         bytecode = dis.Bytecode(fn)
+        exc_table: list[ExceptionTableEntry] = bytecode.exception_entries
+
         for instr in bytecode:
             body.append(f"// {str(instr).strip()}")
 
-            if instr.label != None:
+            if instr.label is not None:
                 body.append(f"L{instr.label}:")
+                
+                for entry in exc_table:
+                    if not (entry.start <= instr.offset and entry.end >= instr.offset):
+                        continue
+                    
+                    handler_label = label_by_offset(entry.target)
+
+                    body.append(f"// Exception region: {entry.start} to {entry.end}, target {entry.target}, depth {entry.depth}, lasti: {'yes' if entry.lasti else 'no'}")
+                    body.append(f"#undef PY__EXCEPTION_HANDLER_LABEL")
+                    body.append(f"#define PY__EXCEPTION_HANDLER_LABEL {handler_label}")
+                    break
 
             # Important to mention: stack_current points to the stack slot that will be
             # popped next. When pushing, it needs to be incremented BEFORE writing to the
@@ -204,6 +225,16 @@ class TranslationUnit:
                     body.append(f"PY_OPCODE_OPERATION({op});")
                 case "JUMP_BACKWARD" | "JUMP_BACKWARD_NO_INTERRUPT":
                     body.append(f"goto {label_by_offset(instr.jump_target)};")
+                case "RAISE_VARARGS":
+                    if instr.arg == 0:
+                        # 0: `raise` (re-raise previous exception)
+                        body.append("goto PY__EXCEPTION_HANDLER_LABEL;")
+                    elif instr.arg == 1:
+                        # 1: `raise STACK[-1]` (raise exception instance or type at STACK[-1])
+                        body.append("RAISE_CATCHABLE(stack[stack_current--]);")
+                    else:
+                        # TODO: arg == 2
+                        raise Exception(f"RAISE_VARARGS argc = {instr.arg} not implemented")
                 case _:
                     error(f"unknown opcode '{instr.opname}'!")
                     error(f"the full disassembly of the target function is displayed below")
