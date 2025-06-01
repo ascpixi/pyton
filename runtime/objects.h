@@ -13,8 +13,11 @@ USES_VECTOR_FOR(symbol_t);
 // Represents any Python object.
 typedef struct pyobj pyobj_t;
 
+// Represents the return value of a callable object (a Python function or method).
+typedef struct pyreturn pyreturn_t;
+
 // Represents a pointer to a function that handles a built-in Python callable (function or method).
-typedef pyobj_t* (*py_fnptr_callable_t)(
+typedef pyreturn_t (*py_fnptr_callable_t)(
     pyobj_t* self,
     int argc,
     pyobj_t** argv,
@@ -66,10 +69,14 @@ struct pyobj {
     };
 };
 
-// Represents a single entry in a symbol table.
 struct symbol {
     pyobj_t* value;
     const char* name;
+};
+
+struct pyreturn {
+    pyobj_t* value;
+    pyobj_t* exception;
 };
 
 // The type that represents the `bool` Python class.
@@ -139,7 +146,7 @@ pyobj_t* py_alloc_object(pyobj_t* type);
 
 // Attempts to call the given object, assuming it is callable. This function succeeds when
 // target is either of type `py_type_builtin_callable`, or when it contains a `__call__` attribute.
-pyobj_t* py_call(
+pyreturn_t py_call(
     pyobj_t* target,
     pyobj_t* self,
     int argc,
@@ -147,6 +154,9 @@ pyobj_t* py_call(
     int kwargc,
     symbol_t* kwargv
 );
+
+// Calls `__str__` on the given object, with no parameters.
+const char* py_stringify(pyobj_t* target);
 
 // Tries to find the value associated with the attribute with the given name on the
 // given object. If no such attribute exists, returns `NULL` instead.

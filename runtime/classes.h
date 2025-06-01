@@ -16,7 +16,7 @@
 // `$name` must be prefixed with `_` in order to avoid conflicts with C keywords and/or
 // macros. This macro will also define a global with the name `$name` that points to the
 // type object.
-#define DEFINE_TYPE($name, $intrinsic)                                                \
+#define DEFINE_TYPE($name, $intrinsic, $inherits_from)                                \
     const pyobj_t py_type##$name = {                                                  \
         .type = &py_type_type,                                                        \
         .as_type = {                                                                  \
@@ -26,17 +26,17 @@
                 .capacity = sizeof(py_type##$name##_attrs_initial) / sizeof(symbol_t) \
             },                                                                        \
             .is_intrinsic = $intrinsic,                                               \
-            .base = NULL                                                              \
+            .base = $inherits_from                                                    \
         }                                                                             \
     };                                                                                \
     const pyobj_t* pyglobal_##$name = &py_type##$name;                                \
 
 // Defines an intrinsic Python type, the instances of which would not hold their own
 // attribute tables. See `DEFINE_TYPE` for more details.
-#define DEFINE_INTRINSIC_TYPE($name) DEFINE_TYPE($name, true)
+#define DEFINE_INTRINSIC_TYPE($name) DEFINE_TYPE($name, true, NULL)
 
 // Defines a regular Python type, provided by the runtime. See `DEFINE_TYPE` for more details.
-#define DEFINE_BUILTIN_TYPE($name) DEFINE_TYPE($name, false)
+#define DEFINE_BUILTIN_TYPE($name, $inherits_from) DEFINE_TYPE($name, false, $inherits_from)
 
 // Begins the class attribute list for type `$name`.
 #define CLASS_ATTRIBUTES($name)                   \

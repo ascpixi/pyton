@@ -2,6 +2,7 @@
 
 #include "objects.h"
 #include "symbols.h"
+#include "exceptions.h"
 
 // Starts the definition of a C representation of a Python function.
 //
@@ -11,13 +12,13 @@
 //          pyobj_t* first_arg = argv[0];
 //      }
 // ```
-#define PY_DEFINE($name)        \
-    pyobj_t* $name (            \
-        pyobj_t* self,          \
-        int argc,               \
-        pyobj_t** argv,         \
-        int kwargc,             \
-        symbol_t* kwargv        \
+#define PY_DEFINE($name)                  \
+    pyreturn_t $name (                    \
+        pyobj_t* self,                    \
+        int argc,                         \
+        pyobj_t** argv,                   \
+        int kwargc,                       \
+        symbol_t* kwargv                  \
     )
 
 // Returns the name of the callable object that wraps over the function `$fn`.

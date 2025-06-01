@@ -14,7 +14,7 @@ PY_DEFINE(py_builtin_print) {
 
     if (argc == 0) {
         terminal_newline();
-        return &py_none;
+        return WITH_RESULT(&py_none);
     }
 
     if (argc != 1) {
@@ -29,18 +29,18 @@ PY_DEFINE(py_builtin_print) {
     }
 
     terminal_println(value->as_str);
-    return &py_none;
+    return WITH_RESULT(&py_none);
 }
 
 CLASS(bytearray)
     CLASS_ATTRIBUTES(_bytearray) {
         // TODO: methods for bytearray
     };
-DEFINE_BUILTIN_TYPE(_bytearray);
+DEFINE_BUILTIN_TYPE(_bytearray, NULL);
 
 CLASS(range_iterator)
     CLASS_METHOD(_range_iterator, __iter__) {
-        return self;
+        return WITH_RESULT(self);
     };
 
     CLASS_METHOD(_range_iterator, __init__) {
@@ -55,18 +55,18 @@ CLASS(range_iterator)
         py_set_attribute(self, "stop", py_get_attribute(arg, "stop"));
         py_set_attribute(self, "step", py_get_attribute(arg, "step"));
 
-        return &py_none;
+        return WITH_RESULT(&py_none);
     };
 
     CLASS_METHOD(_range_iterator, __next__) {
-
+        
     };
 
     CLASS_ATTRIBUTES(_range_iterator) {
         HAS_CLASS_METHOD(_range_iterator, __init__),
         HAS_CLASS_METHOD(_range_iterator, __iter__)
     };
-DEFINE_BUILTIN_TYPE(_range_iterator);
+DEFINE_BUILTIN_TYPE(_range_iterator, NULL);
 
 CLASS(range)
     const pyobj_t py_range_default_start = PY_INT_CONSTANT(0);
@@ -100,7 +100,7 @@ CLASS(range)
             py_set_attribute(self, "step", argv[2]);
         }
 
-        return &py_none;
+        return WITH_RESULT(&py_none);
     };
 
     CLASS_METHOD(_range, __iter__) {
@@ -122,5 +122,5 @@ CLASS(range)
         HAS_CLASS_METHOD(_range, __init__),
         HAS_CLASS_METHOD(_range, __iter__)
     };
-DEFINE_BUILTIN_TYPE(_range);
+DEFINE_BUILTIN_TYPE(_range, NULL);
 

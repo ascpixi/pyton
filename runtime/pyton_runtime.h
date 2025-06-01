@@ -7,3 +7,4 @@
 #include "functions.h"
 #include "init.h"
 #include "opcodes.h"
+#include "exceptions.h"

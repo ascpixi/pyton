@@ -9,12 +9,19 @@
     pyobj_t* left = stack[(*stack_current)--];    \
     pyobj_t* right = stack[(*stack_current)--];   \
 
+#define OPERATION_EPILOG($method, $op)                                                  \
+    pyobj_t* exception = NULL;                                                          \
+    arbitrary_op(stack, stack_current, $method, right, left, &exception);               \
+    if (exception != NULL)                                                              \
+        return exception;                                                               \
+    return NEW_EXCEPTION_INLINE(TypeError, "unsupported operand type(s) for " $op);     \
+
 #define BOTH_OF_TYPE($type) right->type == $type && left->type == $type
 
 #define INT_OPERATION($op)                                               \
     if (BOTH_OF_TYPE(&py_type_int)) {                                    \
         STACK_PUSH(py_alloc_int(right->as_int $op left->as_int));        \
-        return;                                                          \
+        return NULL;                                                     \
     }                                                                    \
 
 static bool arbitrary_op(
@@ -22,12 +29,21 @@ static bool arbitrary_op(
     int* stack_current,
     const char* attr_name,
     pyobj_t* right,
-    pyobj_t* left
+    pyobj_t* left,
+    pyobj_t** exception
 ) {
     pyobj_t* op_fn = py_get_attribute(right, attr_name);
     if (op_fn != NULL && op_fn->type == &py_type_callable) {
         pyobj_t* args[] = { left };
-        STACK_PUSH(op_fn->as_callable(right, 1, args, 0, NULL));
+        pyreturn_t result = op_fn->as_callable(right, 1, args, 0, NULL);
+
+        if (result.exception != NULL) {
+            *exception = result.exception;
+        }
+        else {
+            STACK_PUSH(result.value);
+        }
+
         return true;
     }
 
@@ -37,152 +53,152 @@ static bool arbitrary_op(
 // TODO: string concat
 // TODO: float operations
 
-void py_opcode_op_add(void** stack, int* stack_current) {
+pyobj_t* py_opcode_op_add(void** stack, int* stack_current) {
     OPERATION_PROLOG;
     INT_OPERATION(+);
-    arbitrary_op(stack, stack_current, "__add__", right, left);
+    OPERATION_EPILOG("__add__", "+");
 }
 
-void py_opcode_op_and(void** stack, int* stack_current) {
+pyobj_t* py_opcode_op_and(void** stack, int* stack_current) {
     OPERATION_PROLOG;
     INT_OPERATION(&);
-    arbitrary_op(stack, stack_current, "__and__", right, left);
+    OPERATION_EPILOG("__and__", "&");
 }
 
-void py_opcode_op_floordiv(void** stack, int* stack_current) {
+pyobj_t* py_opcode_op_floordiv(void** stack, int* stack_current) {
     OPERATION_PROLOG;
     INT_OPERATION(/);
-    arbitrary_op(stack, stack_current, "__floordiv__", right, left);
+    OPERATION_EPILOG("__floordiv__", "//");
 }
 
-void py_opcode_op_lsh(void** stack, int* stack_current) {
+pyobj_t* py_opcode_op_lsh(void** stack, int* stack_current) {
     OPERATION_PROLOG;
     INT_OPERATION(<<);
-    arbitrary_op(stack, stack_current, "__lshift__", right, left);
+    OPERATION_EPILOG("__lshift__", "<<");
 }
 
-void py_opcode_op_matmul(void** stack, int* stack_current) {
+pyobj_t* py_opcode_op_matmul(void** stack, int* stack_current) {
     OPERATION_PROLOG;
-    arbitrary_op(stack, stack_current, "__matmul__", right, left);
+    OPERATION_EPILOG("__matmul__", "@");
 }
 
-void py_opcode_op_mul(void** stack, int* stack_current) {
+pyobj_t* py_opcode_op_mul(void** stack, int* stack_current) {
     OPERATION_PROLOG;
     INT_OPERATION(*);
-    arbitrary_op(stack, stack_current, "__mul__", right, left);
+    OPERATION_EPILOG("__mul__", "*");
 }
 
-void py_opcode_op_rem(void** stack, int* stack_current) {
+pyobj_t* py_opcode_op_rem(void** stack, int* stack_current) {
     // TODO: Verify the correctness of using a regular modulo as an int remainder
     OPERATION_PROLOG;
     INT_OPERATION(%);
-    arbitrary_op(stack, stack_current, "__mod__", right, left);
+    OPERATION_EPILOG("__mod__", "%");
 }
 
-void py_opcode_op_or(void** stack, int* stack_current) {
+pyobj_t* py_opcode_op_or(void** stack, int* stack_current) {
     OPERATION_PROLOG;
     INT_OPERATION(|);
-    arbitrary_op(stack, stack_current, "__or__", right, left);
+    OPERATION_EPILOG("__or__", "|");
 }
 
-void py_opcode_op_pow(void** stack, int* stack_current) {
+pyobj_t* py_opcode_op_pow(void** stack, int* stack_current) {
     OPERATION_PROLOG;
     // TODO: int power
-    arbitrary_op(stack, stack_current, "__pow__", right, left);
+    OPERATION_EPILOG("__pow__", "**");
 }
 
-void py_opcode_op_rsh(void** stack, int* stack_current) {
+pyobj_t* py_opcode_op_rsh(void** stack, int* stack_current) {
     OPERATION_PROLOG;
     INT_OPERATION(>>);
-    arbitrary_op(stack, stack_current, "__rshift__", right, left);
+    OPERATION_EPILOG("__rshift__", ">>");
 }
 
-void py_opcode_op_sub(void** stack, int* stack_current) {
+pyobj_t* py_opcode_op_sub(void** stack, int* stack_current) {
     OPERATION_PROLOG;
     INT_OPERATION(-);
-    arbitrary_op(stack, stack_current, "__sub__", right, left);
+    OPERATION_EPILOG("__sub__", "-");
 }
 
-void py_opcode_op_xor(void** stack, int* stack_current) {
+pyobj_t* py_opcode_op_xor(void** stack, int* stack_current) {
     OPERATION_PROLOG;
     INT_OPERATION(^);
-    arbitrary_op(stack, stack_current, "__xor__", right, left);
+    OPERATION_EPILOG("__xor__", "^");
 }
 
-void py_opcode_op_iadd(void** stack, int* stack_current) {
+pyobj_t* py_opcode_op_iadd(void** stack, int* stack_current) {
     OPERATION_PROLOG;
     INT_OPERATION(+);
-    arbitrary_op(stack, stack_current, "__iadd__", right, left);
+    OPERATION_EPILOG("__iadd__", "+=");
 }
 
-void py_opcode_op_iand(void** stack, int* stack_current) {
+pyobj_t* py_opcode_op_iand(void** stack, int* stack_current) {
     OPERATION_PROLOG;
     INT_OPERATION(&);
-    arbitrary_op(stack, stack_current, "__iand__", right, left);
+    OPERATION_EPILOG("__iand__", "&=");
 }
 
-void py_opcode_op_ifloordiv(void** stack, int* stack_current) {
+pyobj_t* py_opcode_op_ifloordiv(void** stack, int* stack_current) {
     OPERATION_PROLOG;
     INT_OPERATION(/);
-    arbitrary_op(stack, stack_current, "__ifloordiv__", right, left);
+    OPERATION_EPILOG("__ifloordiv__", "//=");
 }
 
-void py_opcode_op_ilsh(void** stack, int* stack_current) {
+pyobj_t* py_opcode_op_ilsh(void** stack, int* stack_current) {
     OPERATION_PROLOG;
     INT_OPERATION(<<);
-    arbitrary_op(stack, stack_current, "__ilshift__", right, left);
+    OPERATION_EPILOG("__ilshift__", "<<=");
 }
 
-void py_opcode_op_imatmul(void** stack, int* stack_current) {
+pyobj_t* py_opcode_op_imatmul(void** stack, int* stack_current) {
     OPERATION_PROLOG;
-    arbitrary_op(stack, stack_current, "__imatmul__", right, left);
+    OPERATION_EPILOG("__imatmul__", "@=");
 }
 
-void py_opcode_op_imul(void** stack, int* stack_current) {
+pyobj_t* py_opcode_op_imul(void** stack, int* stack_current) {
     OPERATION_PROLOG;
     INT_OPERATION(*);
-    arbitrary_op(stack, stack_current, "__imul__", right, left);
+    OPERATION_EPILOG("__imul__", "*=");
 }
 
-void py_opcode_op_irem(void** stack, int* stack_current) {
+pyobj_t* py_opcode_op_irem(void** stack, int* stack_current) {
     // TODO: Verify the correctness of using a regular modulo as an int remainder
     OPERATION_PROLOG;
     INT_OPERATION(%);
-    arbitrary_op(stack, stack_current, "__imod__", right, left);
+    OPERATION_EPILOG("__imod__", "%=");
 }
 
-void py_opcode_op_ior(void** stack, int* stack_current) {
+pyobj_t* py_opcode_op_ior(void** stack, int* stack_current) {
     OPERATION_PROLOG;
     INT_OPERATION(|);
-    arbitrary_op(stack, stack_current, "__ior__", right, left);
+    OPERATION_EPILOG("__ior__", "|=");
 }
 
-void py_opcode_op_ipow(void** stack, int* stack_current) {
+pyobj_t* py_opcode_op_ipow(void** stack, int* stack_current) {
     OPERATION_PROLOG;
     // TODO: int power
-    arbitrary_op(stack, stack_current, "__ipow__", right, left);
+    OPERATION_EPILOG("__ipow__", "**=");
 }
 
-void py_opcode_op_irsh(void** stack, int* stack_current) {
+pyobj_t* py_opcode_op_irsh(void** stack, int* stack_current) {
     OPERATION_PROLOG;
     INT_OPERATION(>>);
-    arbitrary_op(stack, stack_current, "__irshift__", right, left);
+    OPERATION_EPILOG("__irshift__", ">>=");
 }
 
-void py_opcode_op_isub(void** stack, int* stack_current) {
+pyobj_t* py_opcode_op_isub(void** stack, int* stack_current) {
     OPERATION_PROLOG;
     INT_OPERATION(-);
-    arbitrary_op(stack, stack_current, "__isub__", right, left);
+    OPERATION_EPILOG("__isub__", "-=");
 }
 
-void py_opcode_op_ixor(void** stack, int* stack_current) {
+pyobj_t* py_opcode_op_ixor(void** stack, int* stack_current) {
     OPERATION_PROLOG;
     INT_OPERATION(^);
-    arbitrary_op(stack, stack_current, "__ixor__", right, left);
+    OPERATION_EPILOG("__ixor__", "^=");
 }
 
-void py_opcode_op_subscr(void** stack, int* stack_current) {
+pyobj_t* py_opcode_op_subscr(void** stack, int* stack_current) {
     OPERATION_PROLOG;
     // this one's kinda a guess
-    arbitrary_op(stack, stack_current, "__getitem__", right, left);
+    OPERATION_EPILOG("__getitem__", "[]");
 }

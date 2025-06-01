@@ -47,12 +47,14 @@ class TranslationUnit:
         if mangled_name in self.transpiled:
             return mangled_name
 
-        defined_preprocessor_syms = []
+        defined_preprocessor_syms = ["PY__EXCEPTION_HANDLER_LABEL"]
 
         body = [
             f"// Function {fn.co_qualname}, declared on line {fn.co_firstlineno}",
             f"void* stack[{fn.co_stacksize + 1}] = {{}};",
-            f"int stack_current = -1;"
+            f"int stack_current = -1;",
+            f"pyobj_t* caught_exception = NULL;",
+            f"#define PY__EXCEPTION_HANDLER_LABEL L_uncaught_exception"
         ]
 
         body.append("")
@@ -142,7 +144,7 @@ class TranslationUnit:
                 case "POP_TOP":
                     body.append(f"stack_current--;")
                 case "RETURN_CONST":
-                    body.append(f"return &const_{instr.arg};")
+                    body.append(f"return WITH_RESULT(&const_{instr.arg});")
                 case "STORE_NAME":
                     name = fn.co_names[instr.arg]
 
@@ -155,51 +157,51 @@ class TranslationUnit:
                     operation = dis.cmp_op[instr.arg >> 5]
                     coerce_bool = (instr.arg & 16) != 0 # fifth lowest bit
 
-                    opcode_fn_name = {
-                        "<": "py_opcode_compare_lt",
-                        "<=": "py_opcode_compare_lte",
-                        "==": "py_opcode_compare_equ",
-                        "!=": "py_opcode_compare_neq",
-                        ">": "py_opcode_compare_gt",
-                        ">=": "py_opcode_compare_gte"
+                    op = {
+                        "<": "lt",
+                        "<=": "lte",
+                        "==": "equ",
+                        "!=": "neq",
+                        ">": "gt",
+                        ">=": "gte"
                     }[operation]
 
-                    body.append(f"{opcode_fn_name}(stack, &stack_current, {c_bool(coerce_bool)});")
+                    body.append(f"PY_OPCODE_COMPARISON({op}, {c_bool(coerce_bool)});")
                 case "POP_JUMP_IF_FALSE":
                     target_label = label_by_offset(instr.jump_target)
                     body.append(f"PY_OPCODE_POP_JUMP_IF_FALSE({target_label});")
                 case "BINARY_OP":
-                    opcode_fn_name = {
-                        NB_ADD: "py_opcode_op_add",
-                        NB_AND: "py_opcode_op_and",
-                        NB_FLOOR_DIVIDE: "py_opcode_op_floordiv",
-                        NB_LSHIFT: "py_opcode_op_lsh",
-                        NB_MATRIX_MULTIPLY: "py_opcode_op_matmul",
-                        NB_MULTIPLY: "py_opcode_op_mul",
-                        NB_REMAINDER: "py_opcode_op_rem",
-                        NB_OR: "py_opcode_op_or",
-                        NB_POWER: "py_opcode_op_pow",
-                        NB_RSHIFT: "py_opcode_op_rsh",
-                        NB_SUBTRACT: "py_opcode_op_sub",
-                        NB_TRUE_DIVIDE: "py_opcode_op_floordiv", # TODO!
-                        NB_XOR: "py_opcode_op_xor",
-                        NB_INPLACE_ADD: "py_opcode_op_iadd",
-                        NB_INPLACE_AND: "py_opcode_op_iand",
-                        NB_INPLACE_FLOOR_DIVIDE: "py_opcode_op_ifloordiv",
-                        NB_INPLACE_LSHIFT: "py_opcode_op_ilsh",
-                        NB_INPLACE_MATRIX_MULTIPLY: "py_opcode_op_imatmul",
-                        NB_INPLACE_MULTIPLY: "py_opcode_op_imul",
-                        NB_INPLACE_REMAINDER: "py_opcode_op_irem",
-                        NB_INPLACE_OR: "py_opcode_op_ior",
-                        NB_INPLACE_POWER: "py_opcode_op_ipow",
-                        NB_INPLACE_RSHIFT: "py_opcode_op_irsh",
-                        NB_INPLACE_SUBTRACT: "py_opcode_op_isub",
-                        NB_INPLACE_TRUE_DIVIDE: "py_opcode_op_ifloordiv", # TODO!!
-                        NB_INPLACE_XOR: "py_opcode_op_ixor",
-                        NB_SUBSCR: "py_opcode_op_subscr"
+                    op = {
+                        NB_ADD: "add",
+                        NB_AND: "and",
+                        NB_FLOOR_DIVIDE: "floordiv",
+                        NB_LSHIFT: "lsh",
+                        NB_MATRIX_MULTIPLY: "matmul",
+                        NB_MULTIPLY: "mul",
+                        NB_REMAINDER: "rem",
+                        NB_OR: "or",
+                        NB_POWER: "pow",
+                        NB_RSHIFT: "rsh",
+                        NB_SUBTRACT: "sub",
+                        NB_TRUE_DIVIDE: "floordiv", # TODO!
+                        NB_XOR: "xor",
+                        NB_INPLACE_ADD: "iadd",
+                        NB_INPLACE_AND: "iand",
+                        NB_INPLACE_FLOOR_DIVIDE: "ifloordiv",
+                        NB_INPLACE_LSHIFT: "ilsh",
+                        NB_INPLACE_MATRIX_MULTIPLY: "imatmul",
+                        NB_INPLACE_MULTIPLY: "imul",
+                        NB_INPLACE_REMAINDER: "irem",
+                        NB_INPLACE_OR: "ior",
+                        NB_INPLACE_POWER: "ipow",
+                        NB_INPLACE_RSHIFT: "irsh",
+                        NB_INPLACE_SUBTRACT: "isub",
+                        NB_INPLACE_TRUE_DIVIDE: "ifloordiv", # TODO!!
+                        NB_INPLACE_XOR: "ixor",
+                        NB_SUBSCR: "subscr"
                     }[instr.arg]
 
-                    body.append(f"{opcode_fn_name}(stack, &stack_current);")
+                    body.append(f"PY_OPCODE_OPERATION({op});")
                 case "JUMP_BACKWARD" | "JUMP_BACKWARD_NO_INTERRUPT":
                     body.append(f"goto {label_by_offset(instr.jump_target)};")
                 case _:
@@ -211,6 +213,12 @@ class TranslationUnit:
             body.append("")
 
         body.append("// (function end)")
+        body.append("")
+
+        # This is the default handler for exceptions if the exception table didn't define
+        # one already. We simply pass the exception to the caller.
+        body.append("L_uncaught_exception:")
+        body.append("return WITH_EXCEPTION(caught_exception);")
         body.append("")
 
         for sym in defined_preprocessor_syms:

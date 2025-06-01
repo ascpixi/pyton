@@ -19,7 +19,7 @@ CLASS(bool)
 
     CLASS_METHOD(_bool, __str__) {
         py_verify_self_arg(self, &py_type_bool);
-        return self->as_bool ? &py_strliteral_true : &py_strliteral_false;
+        return WITH_RESULT(self->as_bool ? &py_strliteral_true : &py_strliteral_false);
     };
 
     CLASS_ATTRIBUTES(_bool) {
@@ -45,7 +45,7 @@ CLASS(str)
 
     CLASS_METHOD(_str, __str__) {
         py_verify_self_arg(self, &py_type_str);
-        return self;
+        return WITH_RESULT(self);
     };
 
     CLASS_METHOD(_str, __new__) {
@@ -57,7 +57,7 @@ CLASS(str)
         pyobj_t* value = argv[0];
         pyobj_t* method_str = py_get_attribute(value, "__str__");
         if (method_str == NULL)
-            return &py_strliteral_unknown;
+            return WITH_RESULT(&py_strliteral_unknown);
 
         return py_call(method_str, value, 0, NULL, 0, NULL);
     };
@@ -87,12 +87,12 @@ CLASS(type)
         // If this is called, that would mean that we're using the default implementation
         // of __new__. We create an empty object in this case.
         pyobj_t* obj = py_alloc_object(cls);
-        return obj;
+        return WITH_RESULT(obj);
     };
 
     CLASS_METHOD(_type, __init__) {
         // The default implementation of __init__ is a no-op.
-        return &py_none;
+        return WITH_RESULT(&py_none);
     };
 
     CLASS_METHOD(_type, __call__) {
@@ -109,7 +109,7 @@ CLASS(type)
         ENSURE_NOT_NULL(method_new, "type.__call__");
 
         // __new__ is a class method, not an instance method. First argument is the class.
-        pyobj_t* obj = py_call(method_new, self, argc, argv, kwargc, kwargv);
+        pyobj_t* obj = UNWRAP(py_call(method_new, self, argc, argv, kwargc, kwargv));
         ENSURE_NOT_NULL(obj, "type.__call__"); // e.g. &py_none would be fine, but NULL means something's wrong
         
         // If __new__() does not return an instance of cls, then the new instance's __init__() method will not be invoked.
@@ -122,7 +122,7 @@ CLASS(type)
             py_call(method_init, obj, argc, argv, kwargc, kwargv);
         }
 
-        return obj;
+        return WITH_RESULT(obj);
     };
 
     CLASS_ATTRIBUTES(_type) {
@@ -142,7 +142,7 @@ CLASS(NoneType)
     CLASS_ATTRIBUTES(_nonetype) {
         // TODO: methods for nonetype
     };
-DEFINE_BUILTIN_TYPE(_nonetype);
+DEFINE_BUILTIN_TYPE(_nonetype, NULL);
 
 const pyobj_t py_none = { .type = &py_type_nonetype };
 const pyobj_t py_true = { .type = &py_type_bool, .as_bool = true };
@@ -240,7 +240,7 @@ pyobj_t* py_alloc_object(pyobj_t* type) {
     return obj;
 }
 
-pyobj_t* py_call(
+pyreturn_t py_call(
     pyobj_t* target,
     pyobj_t* self,
     int argc,
@@ -262,7 +262,23 @@ pyobj_t* py_call(
         return call_attr->as_callable(self, argc, argv, kwargc, kwargv);
     }
 
-    // TODO: Raise a `TypeError: '...' object is not callable` exception instead of panicking here.
-    sys_panic("attempted to call a non-callable object");
-    return NULL;
+    RAISE(TypeError, "attempted to call a non-callable object");
+}
+
+const char* py_stringify(pyobj_t* target) {
+    if (target == NULL)
+        return "<NULL>";
+
+    if (target == &py_none)
+        return "None";
+
+    pyobj_t* method_str = py_get_attribute(target, "__str__");
+    pyreturn_t converted = py_call(method_str, target, 0, NULL, 0, NULL);
+    if (converted.exception != NULL)
+        return "<error while stringifying>";
+
+    if (converted.value->type != &py_type_str)
+        return py_stringify(converted.value);
+
+    return converted.value->as_str;
 }

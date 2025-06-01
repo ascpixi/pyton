@@ -11,8 +11,15 @@ void sys_init(void) {
     terminal_println("All systems nominal");
 }
 
-void sys_deinit() {
-    terminal_println("Script finished running.");
+void sys_handle_main_return(pyreturn_t result) {
+    if (result.exception != NULL) {
+        // Oops, the script finished running with an exception...
+        terminal_println("An uncaught exception was encountered.");
+        terminal_println(py_stringify(result.exception));
+    }
+    else {
+        terminal_println("(script finished running, hanging)");
+    }
 
     while (true) {}
 }
