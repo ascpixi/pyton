@@ -173,24 +173,20 @@ pyobj_t* py_get_attribute(pyobj_t* target, const char* name) {
     //          abc = 123
     // ...then `A().abc` would be the same as `A.abc`. The type of `A()` would be set
     // to `A` - the object representing class `A`.
-    if (target->type != &py_type_type) {
-        return py_get_attribute(target->type, name);
-    }
-    else {
-        // If this *is* an object representing a type, we still might have a base class
-        // that has more attributes.
-        //
-        // For example, if we were to do:
-        //      class A:
-        //          abc = 123
-        //
-        //      class B(A):
-        //          pass
-        // ...then doing `B.abc` would be equivalennt to `A.abc` in this case.
-        // It follows that `B().abc` would also be equivalent to `A.abc`.
-        if (target->type->as_type.base != NULL) {
-            return py_get_attribute(target->type->as_type.base, name);
+    //
+    // We search all class attribute tables, going down the inheritance chain.
+    pyobj_t* current_base = target->type;
+    while (current_base != NULL) {
+        vector_t(symbol_t)* attributes = &current_base->as_type.class_attributes;
+        for (size_t i = 0; i < attributes->length; i++) {
+            symbol_t attribute = attributes->elements[i];
+
+            if (rtl_strequ(attribute.name, name)) {
+                return attribute.value;
+            }
         }
+
+        current_base = current_base->as_type.base;
     }
 
     return NULL;
@@ -259,6 +255,12 @@ pyreturn_t py_call(
     // be a method, which in turn would be a callable.
     pyobj_t* call_attr = py_get_attribute(target, "__call__");
     if (call_attr != NULL && call_attr->type == &py_type_callable) {
+        if (target->type == &py_type_type) {
+            // Special case: when calling a type (e.g. Exception()), `self` will be
+            // equal to `target`.
+            return call_attr->as_callable(target, argc, argv, kwargc, kwargv);
+        }
+        
         return call_attr->as_callable(self, argc, argv, kwargc, kwargv);
     }
 
