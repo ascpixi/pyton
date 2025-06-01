@@ -44,7 +44,7 @@ struct pyobj {
         double as_float;
 
         // Valid when `type` points to `py_type_type`.
-        union type_data {
+        struct type_data {
             // Represents the attribute table of the class.
             vector_t(symbol_t) class_attributes;
 
