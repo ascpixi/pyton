@@ -59,7 +59,7 @@ class TranslationUnit:
         body.append("// (constants start)")
         for i, const in enumerate(fn.co_consts):
             if type(const) is str:
-                body.append(f'static const pyobj_t const_{i} = {{ .type = &py_type_str, .as_str = "{const}" }};')
+                body.append(f'static const pyobj_t const_{i} = {{ .type = &py_type_str, .as_str = "{const.replace("\n", "\\n").replace("\r", "")}" }};')
             elif type(const) is int:
                 body.append(f"static const pyobj_t const_{i} = {{ .type = &py_type_int, .as_int = {const} }};")
             elif type(const) is float:
