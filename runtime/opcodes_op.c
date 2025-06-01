@@ -12,7 +12,7 @@
 #define BOTH_OF_TYPE($type) right->type == $type && left->type == $type
 
 #define INT_OPERATION($op)                                               \
-    if (BOTH_OF_TYPE(&py_type_int)) {                                    \ 
+    if (BOTH_OF_TYPE(&py_type_int)) {                                    \
         STACK_PUSH(py_alloc_int(right->as_int $op left->as_int));        \
         return;                                                          \
     }                                                                    \
