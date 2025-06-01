@@ -35,6 +35,24 @@
     if ( ((pyobj_t*)stack[stack_current--])->as_bool == false )     \
         goto $label;                                                \
 
+// Performs the following operations, in order:
+// - pops a value from the stack,
+// - pushes the current exception to the top of the stack,
+// - pushes the value originally popped back to the stack. 
+#define PY_OPCODE_PUSH_EXC_INFO()                   \
+    {                                               \
+        pyobj_t* tmp = stack[stack_current--];      \
+        stack[++stack_current] = caught_exception;  \
+        stack[++stack_current] = tmp;               \
+    }
+
+// Push the i-th item to the top of the stack without removing it from its original location.
+#define PY_OPCODE_COPY($i)                              \
+    {                                                   \
+        pyobj_t* tmp = stack[stack_current - $i + 1];   \
+        stack[++stack_current] = tmp;                   \
+    }
+
 // Performs the given comparison on the stack.
 #define PY_OPCODE_COMPARISON($op, $coerce_to_bool)                                          \
     {                                                                                       \

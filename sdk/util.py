@@ -1,5 +1,8 @@
 import os
 import shutil
+from typing import TypeVar
+
+T = TypeVar("T")
 
 def error(msg: str):
     print(f"error: {msg}")
@@ -13,3 +16,6 @@ def copy_many(root: str, file_list: list[tuple[str, str]]):
         else:
             os.makedirs(os.path.dirname(dst), exist_ok = True)
             shutil.copy(src, dst)
+
+def flatten(xss: list[list[T]]):
+    return [x for xs in xss for x in xs]

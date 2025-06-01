@@ -5,7 +5,7 @@ from types import CodeType
 from typing import Protocol
 
 from .bytecode import *
-from .util import error
+from .util import error, flatten
 
 def c_bool(x: bool):
     return "true" if x else "false"
@@ -111,26 +111,34 @@ class TranslationUnit:
 
         body.append("// (function body start)")
         
+        bytecode = dis.Bytecode(fn)
+        exc_table: list[ExceptionTableEntry] = bytecode.exception_entries
+
         # This maps label indices (instr.label) to offsets.
-        labels = sorted(dis.findlabels(fn.co_code))
+        labels = sorted([
+            *dis.findlabels(fn.co_code),
+            *flatten([[x.start, x.end, x.target] for x in exc_table])
+        ])
 
         def label_by_offset(offset: int):
             "Gets the label at the given bytecode offset."
-            return next(f"L{i + 1}" for i, x in enumerate(labels) if x == offset)
+            return next((f"L{i + 1}" for i, x in enumerate(labels) if x == offset), None)
 
-        bytecode = dis.Bytecode(fn)
-        exc_table: list[ExceptionTableEntry] = bytecode.exception_entries
+        # print(exc_table)
+        # print(dis.dis(fn))
 
         for instr in bytecode:
             body.append(f"// {str(instr).strip()}")
 
-            if instr.label is not None:
-                body.append(f"L{instr.label}:")
+            label = label_by_offset(instr.offset)
+            if label is not None:
+                body.append(f"{label}:")
                 
                 for entry in exc_table:
                     if not (entry.start <= instr.offset and entry.end >= instr.offset):
                         continue
                     
+                    # print("target is ", entry.target, "labels is", labels)
                     handler_label = label_by_offset(entry.target)
 
                     body.append(f"// Exception region: {entry.start} to {entry.end}, target {entry.target}, depth {entry.depth}, lasti: {'yes' if entry.lasti else 'no'}")
@@ -143,7 +151,7 @@ class TranslationUnit:
             # slot.
 
             match instr.opname:
-                case "RESUME":
+                case "RESUME" | "NOP":
                     pass # no-op
                 case "PUSH_NULL":
                     body.append("stack[++stack_current] = NULL;")
@@ -228,13 +236,27 @@ class TranslationUnit:
                 case "RAISE_VARARGS":
                     if instr.arg == 0:
                         # 0: `raise` (re-raise previous exception)
-                        body.append("goto PY__EXCEPTION_HANDLER_LABEL;")
+                        body.append("RAISE_CATCHABLE(caught_exception);")
                     elif instr.arg == 1:
                         # 1: `raise STACK[-1]` (raise exception instance or type at STACK[-1])
                         body.append("RAISE_CATCHABLE(stack[stack_current--]);")
                     else:
                         # TODO: arg == 2
                         raise Exception(f"RAISE_VARARGS argc = {instr.arg} not implemented")
+                case "PUSH_EXC_INFO":
+                    body.append("PY_OPCODE_PUSH_EXC_INFO();")
+                case "POP_EXCEPT":
+                    # TODO: not sure what the difference between this and POP_TOP is?
+                    body.append(f"stack_current--;")
+                case "COPY":
+                    body.append(f"PY_OPCODE_COPY();")
+                case "RERAISE":
+                    if instr.oparg != 0:
+                        # If oparg is non-zero, pops an additional value from the stack
+                        # which is used to set f_lasti of the current frame.
+                        body.append(f"stack_current--;")
+                    
+                    body.append("RAISE_CATCHABLE(stack[stack_current--]);")
                 case _:
                     error(f"unknown opcode '{instr.opname}'!")
                     error(f"the full disassembly of the target function is displayed below")
