@@ -27,9 +27,8 @@ struct pyobj {
     const pyobj_t* type;
 
     union {
-        // Valid when `type` points to a non-intrinsic `pyobj_t`. Represents a pointer
-        // to the attribute table of the object. The table should always end with
-        // an attribute with a NULL name and value.
+        // Valid when `type` points to a non-intrinsic `pyobj_t` - as in, when
+        // `type->as_type.is_intrinsic` is `false`.
         vector_t(symbol_t) as_any;
 
         // Valid when `type` points to `py_type_bool`.
@@ -45,10 +44,25 @@ struct pyobj {
         double as_float;
 
         // Valid when `type` points to `py_type_type`.
-        const char* as_typename;
+        union type_data {
+            // Represents the attribute table of the class.
+            vector_t(symbol_t) class_attributes;
+
+            // The class this one inherits from. If there is no such class, this
+            // field is equal to `NULL`.
+            pyobj_t* base;
+
+            // If `true`, objects of this type are qualified as "intrinsic", meaning
+            // that they do not hold an attribute table that would usually be accessed
+            // via `as_any`.
+            bool is_intrinsic;
+        } as_type;
 
         // Valid when `type` points to `py_type_callable`.
         py_fnptr_callable_t as_callable;
+
+        // Valid when `type` points to `py_type_list` *or* `py_type_tuple`.
+        vector_t(pyobj_t*) as_list;
     };
 };
 
@@ -66,6 +80,9 @@ extern const pyobj_t py_type_bytearray;
 
 // The type that represents the `tuple` Python class.
 extern const pyobj_t py_type_tuple;
+
+// The type that represents the `list` Python class.
+extern const pyobj_t py_type_list;
 
 // The type that represents the `type` Python class.
 extern const pyobj_t py_type_type;
@@ -105,22 +122,13 @@ extern const pyobj_t py_false;
 #define AS_PY_BOOL($x) (($x) ? &py_true : &py_false)
 
 // Converts a C integer into a Python one, allocating it on the heap.
-#define ALLOC_PY_INT($x)                                \
-    ({                                                  \
-        pyobj_t* obj = mm_heap_alloc(sizeof(pyobj_t));  \
-        obj->type = &py_type_int;                       \
-        obj->as_int = $x;                               \
-        obj;                                            \
-    })
+pyobj_t* py_alloc_int(int64_t x);
 
 // Allocates an arbitrary non-intrinsic Python object with the given type.
-#define ALLOC_PY_OBJECT($type)                          \
-    ({                                                  \
-        pyobj_t* obj = mm_heap_alloc(sizeof(pyobj_t));  \
-        obj->type = $type;                              \
-        obj->as_any = {};                               \
-        obj                                             \
-    })
+pyobj_t* py_alloc_object(pyobj_t* type);
+
+// Defines the structure of a `pyobj_t` that defines a string literal.
+#define PY_STR_LITERAL($content) { .type = &py_type_str, .as_str = $content }
 
 // Attempts to call the given object, assuming it is callable. This function succeeds when
 // target is either of type `py_type_builtin_callable`, or when it contains a `__call__` attribute.
@@ -136,3 +144,4 @@ pyobj_t* py_call(
 // Tries to find the value associated with the attribute with the given name on the
 // given object. If no such attribute exists, returns NULL instead.
 pyobj_t* py_get_attribute(pyobj_t* target, const char* name);
+

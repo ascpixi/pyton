@@ -7,3 +7,4 @@
         sys_panic($function ": '" #$value "' was null.");  \
     }                                                               \
 
+

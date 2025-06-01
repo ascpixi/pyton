@@ -12,3 +12,8 @@ void py_assign_global(const char* name, pyobj_t* value);
 
 // A list of all global symbols.
 extern vector_t(symbol_t) py_globals;
+
+// Manually defines a known global. When defining such a global, be sure to also define
+// a corresponding `PY_GLOBAL_<name>_WELLKNOWN` preprocessor symbol, so that the transpiler
+// does not create a duplicate.
+#define KNOWN_GLOBAL($name) pyglobal__##$name

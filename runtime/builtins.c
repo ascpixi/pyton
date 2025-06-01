@@ -2,6 +2,7 @@
 
 #include "sys/core.h"
 #include "sys/terminal.h"
+#include "classes.h"
 
 // Returns the name of the callable object that wraps over the function `$fn`.
 #define FUNCTION_WRAPPER($fn) $fn##_object
@@ -41,3 +42,10 @@ PY_DEFINE(py_builtin_print) {
     terminal_println(value->as_str);
     return &py_none;
 }
+
+DEFINE_TYPE(bytearray, false);
+CLASS_ATTRIBUTES_BEGIN(bytearray)
+    // TODO: methods for bytearray
+CLASS_ATTRIBUTES_END(bytearray)
+
+

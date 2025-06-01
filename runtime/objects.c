@@ -1,23 +1,139 @@
 #include "objects.h"
+#include "functions.h"
+#include "classes.h"
 #include "rtl/stringop.h"
 #include "rtl/safety.h"
 #include "sys/core.h"
 
-#define INTRINSIC_TYPE(name) { .type = &py_type_type, .as_typename = name }
-
 // The following represent intrinsic types - ones that we know about and that hold
 // C data that represent them internally. User-defined types use these types to
 // define their own structures. We treat them specially.
+//
+// Do note that these *are* built-ins - for all other builtin types, see `builtins.h` and
+// `builtins.c`. A type should be here instead of those two files if we have a special
+// `as_<...>` field in the `pyobj_t` union.
 
-const pyobj_t py_type_bool = INTRINSIC_TYPE("bool");
-const pyobj_t py_type_bytearray = INTRINSIC_TYPE("bytearray");
-const pyobj_t py_type_float = INTRINSIC_TYPE("float");
-const pyobj_t py_type_int = INTRINSIC_TYPE("int");
-const pyobj_t py_type_str = INTRINSIC_TYPE("str");
-const pyobj_t py_type_tuple = INTRINSIC_TYPE("tuple");
-const pyobj_t py_type_type = INTRINSIC_TYPE("type");
-const pyobj_t py_type_callable = INTRINSIC_TYPE("callable");
-const pyobj_t py_type_nonetype = INTRINSIC_TYPE("NoneType");
+DEFINE_INTRINSIC_TYPE(type_bool);
+    static const pyobj_t py_strliteral_true = PY_STR_LITERAL("True");
+    static const pyobj_t py_strliteral_false = PY_STR_LITERAL("False");
+
+    CLASS_METHOD(type_bool, __str__) {
+        py_verify_self_arg(self, &py_type_bool);
+        return self->as_bool ? &py_strliteral_true : &py_strliteral_false;
+    }
+
+    CLASS_ATTRIBUTES_BEGIN(type_bool)
+        // TODO: methods for bool
+        HAS_CLASS_METHOD(type_bool, __str__)
+    CLASS_ATTRIBUTES_END(type_bool)
+
+DEFINE_INTRINSIC_TYPE(type_float);
+    CLASS_ATTRIBUTES_BEGIN(type_float)
+        // TODO: methods for float
+    CLASS_ATTRIBUTES_END(type_float)
+
+DEFINE_INTRINSIC_TYPE(type_int);
+    CLASS_ATTRIBUTES_BEGIN(type_int)
+        // TODO: methods for int
+    CLASS_ATTRIBUTES_END(type_int)
+
+DEFINE_INTRINSIC_TYPE(type_str);
+    static const pyobj_t py_strliteral_unknown = PY_STR_LITERAL("<object>");
+
+    CLASS_METHOD(type_str, __str__) {
+        py_verify_self_arg(self, &py_type_str);
+        return self;
+    }
+
+    CLASS_METHOD(type_str, __new__) {
+        pyobj_t* cls = self;
+        
+        if (argc != 1)
+            sys_panic("Expected exactly one argument to str(...).");
+
+        pyobj_t* value = argv[0];
+        pyobj_t* method_str = py_get_attribute(value, "__str__");
+        if (method_str == NULL)
+            return &py_strliteral_unknown;
+
+        return py_call(method_str, value, 0, NULL, 0, NULL);
+    }
+
+    CLASS_ATTRIBUTES_BEGIN(type_str)
+        HAS_CLASS_METHOD(type_str, __str__),
+        HAS_CLASS_METHOD(type_str, __new__)
+    CLASS_ATTRIBUTES_END(type_str)
+
+DEFINE_INTRINSIC_TYPE(type_tuple);
+    CLASS_ATTRIBUTES_BEGIN(type_tuple)
+        // TODO: methods for tuple
+    CLASS_ATTRIBUTES_END(type_tuple)
+
+DEFINE_INTRINSIC_TYPE(type_list);
+    CLASS_ATTRIBUTES_BEGIN(type_list)
+        // TODO: methods for list
+    CLASS_ATTRIBUTES_END(type_list)
+
+DEFINE_INTRINSIC_TYPE(type_type);
+    CLASS_METHOD(type_type, __new__) {
+        pyobj_t* cls = self;
+
+        // If this is called, that would mean that we're using the default implementation
+        // of __new__. We create an empty object in this case.
+        pyobj_t* obj = py_alloc_object(cls);
+        return obj;
+    }
+
+    CLASS_METHOD(type_type, __init__) {
+        // The default implementation of __init__ is a no-op.
+        return &py_none;
+    }
+
+    CLASS_METHOD(type_type, __call__) {
+        ENSURE_NOT_NULL(self, "type.__call__");
+
+        // A call to a `type` object creates a new object of the given type to be
+        // created. For example, if we did `class A: pass`, then `A()`, we'd be calling
+        // the `type` object `A`.
+        //
+        // We first resolve the attribute __new__ on our type object - it might've been
+        // overriden by the class. In most cases, we'll invoke the default __new__ implementation
+        // on `type`. That'll gives an uninitialized empty object.
+        pyobj_t* method_new = py_get_attribute(self, "__new__");
+        ENSURE_NOT_NULL(method_new, "type.__call__");
+
+        // __new__ is a class method, not an instance method. First argument is the class.
+        pyobj_t* obj = py_call(method_new, self, argc, argv, kwargc, kwargv);
+        ENSURE_NOT_NULL(obj, "type.__call__"); // e.g. &py_none would be fine, but NULL means something's wrong
+        
+        // If __new__() does not return an instance of cls, then the new instance's __init__() method will not be invoked.
+        if (obj->type == self) {
+            pyobj_t* method_init = py_get_attribute(obj, "__init__");
+            ENSURE_NOT_NULL(method_init, "type.__call__");
+
+            // We forward the arguments we got to __init__. So, if we get invoked with `A(a, b, c)`,
+            // we'd do A.__init__(obj, a, b, c).
+            py_call(method_init, obj, argc, argv, kwargc, kwargv);
+        }
+
+        return obj;
+    }
+
+    CLASS_ATTRIBUTES_BEGIN(type_type)
+        HAS_CLASS_METHOD(type_type, __new__),
+        HAS_CLASS_METHOD(type_type, __init__),
+        HAS_CLASS_METHOD(type_type, __call__)
+    CLASS_ATTRIBUTES_END(type_type)
+
+DEFINE_INTRINSIC_TYPE(type_callable);
+    CLASS_ATTRIBUTES_BEGIN(type_callable)
+        // TODO: methods for callable
+    CLASS_ATTRIBUTES_END(type_callable)
+
+DEFINE_BUILTIN_TYPE(type_nonetype);
+    CLASS_ATTRIBUTES_BEGIN(type_nonetype)
+        // TODO: methods for nonetype
+    CLASS_ATTRIBUTES_END(type_nonetype)
 
 const pyobj_t py_none = { .type = &py_type_nonetype };
 const pyobj_t py_true = { .type = &py_type_bool, .as_bool = true };
@@ -26,73 +142,71 @@ const pyobj_t py_false = { .type = &py_type_bool, .as_bool = false };
 pyobj_t* py_get_attribute(pyobj_t* target, const char* name) {
     if (name == NULL)
         return NULL; // TODO: probably log a warning here
+    
+    // First, try to find the attribute in the per-object attribute table if it's not
+    // intrinsic. If it *is* intrinsic, we don't even hold an attribute table in the first
+    // place. For example, `int`s are intrinsic, as they hold a single integer value, not
+    // attributes - you cannot do `123.a = 2`.
+    if (!target->type->as_type.is_intrinsic) {
+        vector_t(symbol_t)* attributes = &target->as_any;
+        for (size_t i = 0; i < attributes->length; i++) {
+            symbol_t attribute = attributes->elements[i];
 
-    if (target->type == &py_type_bool) {
-        // Attribute set for `bool`
-        // TODO: Attributes like `__abs__` and `__eq__` for `bool`
-        return NULL;
+            if (rtl_strequ(attribute.name, name)) {
+                return attribute.value;
+            }
+        }
     }
 
-    if (target->type == &py_type_str) {
-        // Attribute set for `str`
-        // TODO: Attributes like `__eq__` for `str`
-        return NULL;
+    // If we didn't find anything, AND this is not an object representing a type, try
+    // searching in the class attribute table. For example, if we were to do something like:
+    //      class A:
+    //          abc = 123
+    // ...then `A().abc` would be the same as `A.abc`. The type of `A()` would be set
+    // to `A` - the object representing class `A`.
+    if (target->type != &py_type_type) {
+        return py_get_attribute(target->type, name);
     }
-
-    if (target->type == &py_type_callable) {
-        // Attribute set for `py_type_callable`
-        // TODO: Attributes like `__call__` for `py_type_callable`
-        return NULL;
-    }
-
-    if (target->type == &py_type_bytearray) {
-        // Attribute set for `py_type_bytearray`
-        // TODO: Attributes like `__eq__` for `py_type_bytearray`
-        return NULL;
-    }
-
-    if (target->type == &py_type_float) {
-        // Attribute set for `py_type_float`
-        // TODO: Attributes like `__eq__` for `py_type_float`
-        return NULL;
-    }
-
-    if (target->type == &py_type_int) {
-        // Attribute set for `py_type_int`
-        // TODO: Attributes like `__eq__` for `py_type_int`
-        return NULL;
-    }
-
-    if (target->type == &py_type_nonetype) {
-        // Attribute set for `py_type_nonetype`
-        // TODO: Attributes like `__eq__` for `py_type_nonetype`
-        return NULL;
-    }
-
-    if (target->type == &py_type_tuple) {
-        // Attribute set for `py_type_tuple`
-        // TODO: Attributes like `__eq__` for `py_type_tuple`
-        return NULL;
-    }
-
-    if (target->type == &py_type_type) {
-        // Attribute set for `py_type_type`
-        // TODO: Attributes like `__eq__` for `py_type_type`
-        return NULL;
-    }
-
-    // This isn't any intrinsic type we recognize, so we assume that this is an object
-    // with a user-defined type.
-    vector_t(symbol_t)* attributes = &target->as_any;
-    for (size_t i = 0; i < attributes->length; i++) {
-        symbol_t attribute = attributes->elements[i];
-
-        if (rtl_strequ(attribute.name, name)) {
-            return attribute.value;
+    else {
+        // If this *is* an object representing a type, we still might have a base class
+        // that has more attributes.
+        //
+        // For example, if we were to do:
+        //      class A:
+        //          abc = 123
+        //
+        //      class B(A):
+        //          pass
+        // ...then doing `B.abc` would be equivalennt to `A.abc` in this case.
+        // It follows that `B().abc` would also be equivalent to `A.abc`.
+        if (target->type->as_type.base != NULL) {
+            return py_get_attribute(target->type->as_type.base, name);
         }
     }
 
     return NULL;
+}
+
+pyobj_t* py_alloc_int(int64_t x) {
+    pyobj_t* obj = mm_heap_alloc(sizeof(pyobj_t));
+    obj->type = &py_type_int;
+    obj->as_int = x;
+    return obj;
+}
+
+pyobj_t* py_alloc_object(pyobj_t* type) {
+    ENSURE_NOT_NULL(type, "py_alloc_object");
+    if (type->type != &py_type_type) {
+        // This might be a bit confusing - basically, we're checking that the type object
+        // actually represents a type. This panic would be triggered if someone e.g.
+        // would invoke `__new__` with the `cls` parameter being an `int`.
+        sys_panic("Attempted to allocate an object with a type object that is not a 'type'.");
+    }
+
+    pyobj_t* obj = mm_heap_alloc(sizeof(pyobj_t));
+    obj->type = type;
+    obj->as_any = (vector_t(symbol_t)) {}; // we start out with no attributes
+    return obj;
 }
 
 pyobj_t* py_call(

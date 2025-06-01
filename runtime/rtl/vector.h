@@ -4,6 +4,7 @@
 
 #include <stddef.h>
 #include "unit.h"
+#include "util.h"
 
 // Defines the fields used by all vector structures (i.e. both the generic and type-erased versions).
 #define _VECTOR_FIELDS(T)   \
