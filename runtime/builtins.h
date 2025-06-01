@@ -14,4 +14,10 @@ PY_DEFINE(py_builtin_print);
 
 // class range(...)
 #define PY_GLOBAL_range_WELLKNOWN
+extern const pyobj_t py_type_range;
 extern const pyobj_t* KNOWN_GLOBAL(range);
+
+// class bytearray(...)
+#define PY_GLOBAL_bytearray_WELLKNOWN
+extern const pyobj_t py_type_bytearray;
+extern const pyobj_t* KNOWN_GLOBAL(bytearray);

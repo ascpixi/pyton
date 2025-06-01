@@ -17,38 +17,38 @@ CLASS(bool)
     static const pyobj_t py_strliteral_true = PY_STR_LITERAL("True");
     static const pyobj_t py_strliteral_false = PY_STR_LITERAL("False");
 
-    CLASS_METHOD(type_bool, __str__) {
+    CLASS_METHOD(_bool, __str__) {
         py_verify_self_arg(self, &py_type_bool);
         return self->as_bool ? &py_strliteral_true : &py_strliteral_false;
     };
 
-    CLASS_ATTRIBUTES(type_bool) {
+    CLASS_ATTRIBUTES(_bool) {
         // TODO: methods for bool
-        HAS_CLASS_METHOD(type_bool, __str__)
+        HAS_CLASS_METHOD(_bool, __str__)
     };
-DEFINE_INTRINSIC_TYPE(type_bool);
+DEFINE_INTRINSIC_TYPE(_bool);
 
 CLASS(float)
-    CLASS_ATTRIBUTES(type_float) {
+    CLASS_ATTRIBUTES(_float) {
         // TODO: methods for float
     };
-DEFINE_INTRINSIC_TYPE(type_float);
+DEFINE_INTRINSIC_TYPE(_float);
 
 CLASS(int)
-    CLASS_ATTRIBUTES(type_int) {
+    CLASS_ATTRIBUTES(_int) {
         // TODO: methods for int
     };
-DEFINE_INTRINSIC_TYPE(type_int);
+DEFINE_INTRINSIC_TYPE(_int);
 
 CLASS(str)
     static const pyobj_t py_strliteral_unknown = PY_STR_LITERAL("<object>");
 
-    CLASS_METHOD(type_str, __str__) {
+    CLASS_METHOD(_str, __str__) {
         py_verify_self_arg(self, &py_type_str);
         return self;
     };
 
-    CLASS_METHOD(type_str, __new__) {
+    CLASS_METHOD(_str, __new__) {
         pyobj_t* cls = self;
         
         if (argc != 1)
@@ -62,26 +62,26 @@ CLASS(str)
         return py_call(method_str, value, 0, NULL, 0, NULL);
     };
 
-    CLASS_ATTRIBUTES(type_str) {
-        HAS_CLASS_METHOD(type_str, __str__),
-        HAS_CLASS_METHOD(type_str, __new__)
+    CLASS_ATTRIBUTES(_str) {
+        HAS_CLASS_METHOD(_str, __str__),
+        HAS_CLASS_METHOD(_str, __new__)
     };
-DEFINE_INTRINSIC_TYPE(type_str);
+DEFINE_INTRINSIC_TYPE(_str);
 
 CLASS(tuple)
-    CLASS_ATTRIBUTES(type_tuple) {
+    CLASS_ATTRIBUTES(_tuple) {
         // TODO: methods for tuple
     };
-DEFINE_INTRINSIC_TYPE(type_tuple);
+DEFINE_INTRINSIC_TYPE(_tuple);
 
 CLASS(list)
-    CLASS_ATTRIBUTES(type_list) {
+    CLASS_ATTRIBUTES(_list) {
         // TODO: methods for list
     };
-DEFINE_INTRINSIC_TYPE(type_list);
+DEFINE_INTRINSIC_TYPE(_list);
 
 CLASS(type)
-    CLASS_METHOD(type_type, __new__) {
+    CLASS_METHOD(_type, __new__) {
         pyobj_t* cls = self;
 
         // If this is called, that would mean that we're using the default implementation
@@ -90,12 +90,12 @@ CLASS(type)
         return obj;
     };
 
-    CLASS_METHOD(type_type, __init__) {
+    CLASS_METHOD(_type, __init__) {
         // The default implementation of __init__ is a no-op.
         return &py_none;
     };
 
-    CLASS_METHOD(type_type, __call__) {
+    CLASS_METHOD(_type, __call__) {
         ENSURE_NOT_NULL(self, "type.__call__");
 
         // A call to a `type` object creates a new object of the given type to be
@@ -125,33 +125,33 @@ CLASS(type)
         return obj;
     };
 
-    CLASS_ATTRIBUTES(type_type) {
-        HAS_CLASS_METHOD(type_type, __new__),
-        HAS_CLASS_METHOD(type_type, __init__),
-        HAS_CLASS_METHOD(type_type, __call__)
+    CLASS_ATTRIBUTES(_type) {
+        HAS_CLASS_METHOD(_type, __new__),
+        HAS_CLASS_METHOD(_type, __init__),
+        HAS_CLASS_METHOD(_type, __call__)
     };
-DEFINE_INTRINSIC_TYPE(type_type);
+DEFINE_INTRINSIC_TYPE(_type);
 
 CLASS(callable)
-    CLASS_ATTRIBUTES(type_callable) {
+    CLASS_ATTRIBUTES(_callable) {
         // TODO: methods for callable
     };
-DEFINE_INTRINSIC_TYPE(type_callable);
+DEFINE_INTRINSIC_TYPE(_callable);
 
 CLASS(NoneType)
-    CLASS_ATTRIBUTES(type_nonetype) {
+    CLASS_ATTRIBUTES(_nonetype) {
         // TODO: methods for nonetype
     };
-DEFINE_BUILTIN_TYPE(type_nonetype);
+DEFINE_BUILTIN_TYPE(_nonetype);
 
 const pyobj_t py_none = { .type = &py_type_nonetype };
 const pyobj_t py_true = { .type = &py_type_bool, .as_bool = true };
 const pyobj_t py_false = { .type = &py_type_bool, .as_bool = false };
 
 pyobj_t* py_get_attribute(pyobj_t* target, const char* name) {
-    if (name == NULL)
-        return NULL; // TODO: probably log a warning here
-    
+    ENSURE_NOT_NULL(name, "py_get_attribute");
+    ENSURE_NOT_NULL(target, "py_get_attribute");
+
     // First, try to find the attribute in the per-object attribute table if it's not
     // intrinsic. If it *is* intrinsic, we don't even hold an attribute table in the first
     // place. For example, `int`s are intrinsic, as they hold a single integer value, not
@@ -195,6 +195,28 @@ pyobj_t* py_get_attribute(pyobj_t* target, const char* name) {
 
     return NULL;
 }
+
+void py_set_attribute(pyobj_t* target, const char* name, pyobj_t* value) {
+    ENSURE_NOT_NULL(name, "py_set_attribute");
+    ENSURE_NOT_NULL(target, "py_set_attribute");
+    ENSURE_NOT_NULL(value, "py_set_attribute");
+
+    if (target->type->as_type.is_intrinsic)
+        sys_panic("The given object is of an immutable type, and cannot be assigned to.");
+
+    vector_t(symbol_t)* attributes = &target->as_any;
+    for (size_t i = 0; i < attributes->length; i++) {
+        symbol_t* attribute = &attributes->elements[i];
+
+        if (rtl_strequ(attribute->name, name)) {
+            attribute->value = value;
+            return;
+        }
+    }
+
+    // No such attribute was defined before, so we add one.
+    rtl_vector_append(attributes, ((symbol_t){ .name = name, .value = value }));
+} 
 
 pyobj_t* py_alloc_int(int64_t x) {
     pyobj_t* obj = mm_heap_alloc(sizeof(pyobj_t));

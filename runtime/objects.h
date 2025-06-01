@@ -74,27 +74,31 @@ struct symbol {
 
 // The type that represents the `bool` Python class.
 extern const pyobj_t py_type_bool;
-
-// The type that represents the `bytearray` Python class.
-extern const pyobj_t py_type_bytearray;
+#define PY_GLOBAL_bool_WELLKNOWN
 
 // The type that represents the `tuple` Python class.
 extern const pyobj_t py_type_tuple;
+#define PY_GLOBAL_tuple_WELLKNOWN
 
 // The type that represents the `list` Python class.
 extern const pyobj_t py_type_list;
+#define PY_GLOBAL_list_WELLKNOWN
 
 // The type that represents the `type` Python class.
 extern const pyobj_t py_type_type;
+#define PY_GLOBAL_type_WELLKNOWN
 
 // The type that represents the `str` Python class.
 extern const pyobj_t py_type_str;
+#define PY_GLOBAL_str_WELLKNOWN
 
 // The type that represents the `int` Python class.
 extern const pyobj_t py_type_int;
+#define PY_GLOBAL_int_WELLKNOWN
 
 // The type that represents the `float` Python class.
 extern const pyobj_t py_type_float;
+#define PY_GLOBAL_float_WELLKNOWN
 
 // The type that represents the `NoneType` Python class.
 extern const pyobj_t py_type_nonetype;
@@ -130,6 +134,9 @@ pyobj_t* py_alloc_object(pyobj_t* type);
 // Defines the structure of a `pyobj_t` that defines a string literal.
 #define PY_STR_LITERAL($content) { .type = &py_type_str, .as_str = $content }
 
+// Defines the structure of a `pyobj_t` that defines an integer constant.
+#define PY_INT_CONSTANT($num) { .type = &py_type_int, .as_int = $num }
+
 // Attempts to call the given object, assuming it is callable. This function succeeds when
 // target is either of type `py_type_builtin_callable`, or when it contains a `__call__` attribute.
 pyobj_t* py_call(
@@ -142,6 +149,9 @@ pyobj_t* py_call(
 );
 
 // Tries to find the value associated with the attribute with the given name on the
-// given object. If no such attribute exists, returns NULL instead.
+// given object. If no such attribute exists, returns `NULL` instead.
 pyobj_t* py_get_attribute(pyobj_t* target, const char* name);
+
+// Sets the attribute with the name `name` on the given object to `value`.
+void py_set_attribute(pyobj_t* target, const char* name, pyobj_t* value);
 
