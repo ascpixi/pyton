@@ -31,9 +31,10 @@ PY_DEFINE(py_builtin_print) {
     return &py_none;
 }
 
-CLASS_ATTRIBUTES(bytearray) {
-    // TODO: methods for bytearray
-};
-DEFINE_TYPE(bytearray, false);
+CLASS(bytearray)
+    CLASS_ATTRIBUTES(type_bytearray) {
+        // TODO: methods for bytearray
+    };
+DEFINE_TYPE(type_bytearray, false);
 
 
