@@ -233,6 +233,8 @@ class TranslationUnit:
         lines.append("")
         lines.append('#include <pyton_runtime.h>')
         lines.append("")
+        lines.append('#pragma GCC diagnostic ignored "-Wdiscarded-qualifiers"')
+        lines.append("")
 
         lines.append("// Transpiled function declarations")
         for fn_name in self.transpiled.keys():
