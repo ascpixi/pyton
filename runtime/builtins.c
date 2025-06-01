@@ -4,18 +4,6 @@
 #include "sys/terminal.h"
 #include "classes.h"
 
-// Returns the name of the callable object that wraps over the function `$fn`.
-#define FUNCTION_WRAPPER($fn) $fn##_object
-
-// Defines a fixed callable object that wraps over the function `$fn`. To reference
-// this object, use `FUNCTION_WRAPPER($fn)`.
-#define DEFINE_FUNCTION_WRAPPER($fn, $global_name)                       \
-    static const pyobj_t FUNCTION_WRAPPER($fn) = {                       \
-        .type = &py_type_callable,                                       \
-        .as_callable = &$fn                                              \
-    };                                                                   \
-    const pyobj_t* KNOWN_GLOBAL($global_name) = &FUNCTION_WRAPPER($fn);  \
-
 DEFINE_FUNCTION_WRAPPER(py_builtin_print, print);
 
 PY_DEFINE(py_builtin_print) {
@@ -43,9 +31,9 @@ PY_DEFINE(py_builtin_print) {
     return &py_none;
 }
 
-DEFINE_TYPE(bytearray, false);
-CLASS_ATTRIBUTES_BEGIN(bytearray)
+CLASS_ATTRIBUTES(bytearray) {
     // TODO: methods for bytearray
-CLASS_ATTRIBUTES_END(bytearray)
+};
+DEFINE_TYPE(bytearray, false);
 
 

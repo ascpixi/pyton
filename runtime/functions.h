@@ -17,7 +17,7 @@
         int argc,               \
         pyobj_t** argv,         \
         int kwargc,             \
-        symbol_t* kwargv   \
+        symbol_t* kwargv        \
     )
 
 // Returns the name of the callable object that wraps over the function `$fn`.
@@ -31,3 +31,4 @@
         .as_callable = &$fn                                              \
     };                                                                   \
     const pyobj_t* KNOWN_GLOBAL($global_name) = &FUNCTION_WRAPPER($fn);  \
+
