@@ -138,13 +138,24 @@ class TranslationUnit:
                     if not (entry.start <= instr.offset and entry.end >= instr.offset):
                         continue
                     
-                    # print("target is ", entry.target, "labels is", labels)
                     handler_label = label_by_offset(entry.target)
 
                     body.append(f"// Exception region: {entry.start} to {entry.end}, target {entry.target}, depth {entry.depth}, lasti: {'yes' if entry.lasti else 'no'}")
                     body.append(f"#undef PY__EXCEPTION_HANDLER_LABEL")
                     body.append(f"#define PY__EXCEPTION_HANDLER_LABEL {handler_label}")
                     break
+                else:
+                    body.append(f"// No exception handler for this region")
+                    body.append(f"#undef PY__EXCEPTION_HANDLER_LABEL")
+                    body.append(f"#define PY__EXCEPTION_HANDLER_LABEL L_uncaught_exception")
+
+            exc_info = next(
+                (x for x in exc_table if (x.start <= instr.offset and x.end >= instr.offset)),
+                None
+            )
+
+            exc_depth = exc_info.depth if exc_info is not None else 0
+            exc_lasti = instr.offset if exc_info is not None else -1
 
             # Important to mention: stack_current points to the stack slot that will be
             # popped next. When pushing, it needs to be incremented BEFORE writing to the
@@ -169,7 +180,7 @@ class TranslationUnit:
                     const = fn.co_consts[instr.arg]
                     body.append(f"stack[++stack_current] = &const_{instr.arg};");
                 case "CALL":
-                    body.append(f"PY_OPCODE_CALL({instr.arg});")
+                    body.append(f"PY_OPCODE_CALL({instr.arg}, {exc_depth}, {exc_lasti});")
                 case "POP_TOP":
                     body.append(f"stack_current--;")
                 case "RETURN_CONST":
@@ -195,7 +206,7 @@ class TranslationUnit:
                         ">=": "gte"
                     }[operation]
 
-                    body.append(f"PY_OPCODE_COMPARISON({op}, {c_bool(coerce_bool)});")
+                    body.append(f"PY_OPCODE_COMPARISON({op}, {c_bool(coerce_bool)}, {exc_depth}, {exc_lasti});")
                 case "POP_JUMP_IF_FALSE":
                     target_label = label_by_offset(instr.jump_target)
                     body.append(f"PY_OPCODE_POP_JUMP_IF_FALSE({target_label});")
@@ -230,16 +241,16 @@ class TranslationUnit:
                         NB_SUBSCR: "subscr"
                     }[instr.arg]
 
-                    body.append(f"PY_OPCODE_OPERATION({op});")
+                    body.append(f"PY_OPCODE_OPERATION({op}, {exc_depth}, {exc_lasti});")
                 case "JUMP_BACKWARD" | "JUMP_BACKWARD_NO_INTERRUPT":
                     body.append(f"goto {label_by_offset(instr.jump_target)};")
                 case "RAISE_VARARGS":
                     if instr.arg == 0:
                         # 0: `raise` (re-raise previous exception)
-                        body.append("RAISE_CATCHABLE(caught_exception);")
+                        body.append(f"RAISE_CATCHABLE(caught_exception, {exc_depth}, {exc_lasti});")
                     elif instr.arg == 1:
                         # 1: `raise STACK[-1]` (raise exception instance or type at STACK[-1])
-                        body.append("RAISE_CATCHABLE(stack[stack_current--]);")
+                        body.append(f"RAISE_CATCHABLE(stack[stack_current--], {exc_depth}, {exc_lasti});")
                     else:
                         # TODO: arg == 2
                         raise Exception(f"RAISE_VARARGS argc = {instr.arg} not implemented")
@@ -256,7 +267,7 @@ class TranslationUnit:
                         # which is used to set f_lasti of the current frame.
                         body.append(f"stack_current--;")
                     
-                    body.append("RAISE_CATCHABLE(stack[stack_current--]);")
+                    body.append(f"RAISE_CATCHABLE(stack[stack_current--], {exc_depth}, {exc_lasti});")
                 case _:
                     error(f"unknown opcode '{instr.opname}'!")
                     error(f"the full disassembly of the target function is displayed below")

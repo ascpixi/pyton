@@ -12,7 +12,7 @@
 //     - `self` or `NULL`
 //     - The remaining positional arguments
 //
-#define PY_OPCODE_CALL($argc)                                                           \
+#define PY_OPCODE_CALL($argc, $exc_depth, $lasti)                                       \
     {                                                                                   \
         pyobj_t* call_argv[$argc];                                                      \
         for (int i = 0; i < $argc; i++) {                                               \
@@ -22,8 +22,7 @@
         pyobj_t* callable = stack[stack_current--];                                     \
         pyreturn_t result = py_call(callable, self, $argc, call_argv, 0, NULL);         \
         if (result.exception != NULL) {                                                 \
-            caught_exception = result.exception;                                        \
-            goto PY__EXCEPTION_HANDLER_LABEL;                                           \
+            RAISE_CATCHABLE(result.exception, $exc_depth, $lasti);                      \
         }                                                                               \
         stack[++stack_current] = result.value;                                          \
     }
@@ -53,23 +52,32 @@
         stack[++stack_current] = tmp;                   \
     }
 
+// Performs exception matching for except. Tests whether the STACK[-2] is an exception
+// matching STACK[-1]. Pops STACK[-1] and pushes the boolean result of the test.
+// #define PY_OPCODE_CHECK_EXC_MATCH()                     \
+//     {                                                   \
+//         pyobj_t* sm2 = stack[stack_current - 1];        \
+//         pyobj_t* sm1 = stack[stack_current];            \
+
+//     }
+
 // Performs the given comparison on the stack.
-#define PY_OPCODE_COMPARISON($op, $coerce_to_bool)                                          \
+#define PY_OPCODE_COMPARISON($op, $coerce_to_bool, $exc_depth, $lasti)                      \
     {                                                                                       \
         pyobj_t* exc = py_opcode_compare_##$op(stack, &stack_current, $coerce_to_bool);     \
         if (exc != NULL) {                                                                  \
-            RAISE_CATCHABLE(exc);                                                           \
+            RAISE_CATCHABLE(exc, $exc_depth, $lasti);                                       \
         }                                                                                   \
     }                                                                                       \
 
 // Performs the given operation on the stack.
-#define PY_OPCODE_OPERATION($op)                                      \
+#define PY_OPCODE_OPERATION($op, $exc_depth, $lasti)                  \
     {                                                                 \
         pyobj_t* exc = py_opcode_op_##$op(stack, &stack_current);     \
         if (exc != NULL) {                                            \
-            RAISE_CATCHABLE(exc);                                     \
+            RAISE_CATCHABLE(exc, $exc_depth, $lasti);                 \
         }                                                             \
-    }          
+    }
 
 // The following functions are implemented in 'opcodes_cmp.c'.
 

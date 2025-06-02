@@ -44,9 +44,15 @@
     return WITH_EXCEPTION(NEW_EXCEPTION(&py_type_##$type, &exc_literal_l## __LINE__))    \
     
 // Raise an exception that may be caught. This macro should only be used by transpiled code.
-#define RAISE_CATCHABLE($obj)           \
-    caught_exception = ($obj);          \
-    goto PY__EXCEPTION_HANDLER_LABEL;   \
+#define RAISE_CATCHABLE($obj, $depth, $lasti)                                               \
+    caught_exception = ($obj);                                                              \
+    stack_current = $depth - 1;                                                             \
+    if ($lasti != -1) {                                                                     \
+        static const pyobj_t _lasti_py = { .type = &py_type_int, .as_int = $lasti };        \
+        stack[++stack_current] = &_lasti_py;                                                \
+    }                                                                                       \
+    stack[++stack_current] = ($obj);                                                        \
+    goto PY__EXCEPTION_HANDLER_LABEL;                                                       \
 
 #define PY_GLOBAL_BaseException_WELLKNOWN
 extern const pyobj_t py_type_BaseException;
