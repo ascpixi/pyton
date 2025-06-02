@@ -54,12 +54,13 @@
 
 // Performs exception matching for except. Tests whether the STACK[-2] is an exception
 // matching STACK[-1]. Pops STACK[-1] and pushes the boolean result of the test.
-// #define PY_OPCODE_CHECK_EXC_MATCH()                     \
-//     {                                                   \
-//         pyobj_t* sm2 = stack[stack_current - 1];        \
-//         pyobj_t* sm1 = stack[stack_current];            \
-
-//     }
+#define PY_OPCODE_CHECK_EXC_MATCH()                                     \
+    {                                                                   \
+        pyobj_t* sm2 = stack[stack_current - 1];                        \
+        pyobj_t* sm1 = stack[stack_current];                            \
+        stack_current--;                                                \
+        stack[++stack_current] = AS_PY_BOOL(py_isinstance(sm2, sm1));   \
+    }
 
 // Performs the given comparison on the stack.
 #define PY_OPCODE_COMPARISON($op, $coerce_to_bool, $exc_depth, $lasti)                      \

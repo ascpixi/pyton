@@ -124,35 +124,39 @@ class TranslationUnit:
             "Gets the label at the given bytecode offset."
             return next((f"L{i + 1}" for i, x in enumerate(labels) if x == offset), None)
 
-        # print(exc_table)
-        # print(dis.dis(fn))
+        prev_handler_region: str | None = None
 
         for instr in bytecode:
-            body.append(f"// {str(instr).strip()}")
+            body.append(f"// {instr.offset}: {str(instr).strip()}")
 
             label = label_by_offset(instr.offset)
             if label is not None:
                 body.append(f"{label}:")
                 
-                for entry in exc_table:
-                    if not (entry.start <= instr.offset and entry.end >= instr.offset):
-                        continue
-                    
-                    handler_label = label_by_offset(entry.target)
+            for entry in exc_table:
+                if not (entry.start <= instr.offset and entry.end >= instr.offset):
+                    continue
+                
+                handler_label = label_by_offset(entry.target)
 
+                if prev_handler_region != handler_label:
                     body.append(f"// Exception region: {entry.start} to {entry.end}, target {entry.target}, depth {entry.depth}, lasti: {'yes' if entry.lasti else 'no'}")
                     body.append(f"#undef PY__EXCEPTION_HANDLER_LABEL")
                     body.append(f"#define PY__EXCEPTION_HANDLER_LABEL {handler_label}")
-                    break
-                else:
-                    body.append(f"// No exception handler for this region")
-                    body.append(f"#undef PY__EXCEPTION_HANDLER_LABEL")
-                    body.append(f"#define PY__EXCEPTION_HANDLER_LABEL L_uncaught_exception")
+                    prev_handler_region = handler_label
+                    
+                break
 
             exc_info = next(
                 (x for x in exc_table if (x.start <= instr.offset and x.end >= instr.offset)),
                 None
             )
+
+            if exc_info is None and prev_handler_region is not None:
+                body.append(f"// No exception handler for this region")
+                body.append(f"#undef PY__EXCEPTION_HANDLER_LABEL")
+                body.append(f"#define PY__EXCEPTION_HANDLER_LABEL L_uncaught_exception")
+                prev_handler_region = None
 
             exc_depth = exc_info.depth if exc_info is not None else 0
             exc_lasti = instr.offset if exc_info is not None else -1
@@ -268,6 +272,8 @@ class TranslationUnit:
                         body.append(f"stack_current--;")
                     
                     body.append(f"RAISE_CATCHABLE(stack[stack_current--], {exc_depth}, {exc_lasti});")
+                case "CHECK_EXC_MATCH":
+                    body.append("PY_OPCODE_CHECK_EXC_MATCH();")
                 case _:
                     error(f"unknown opcode '{instr.opname}'!")
                     error(f"the full disassembly of the target function is displayed below")
