@@ -51,7 +51,7 @@
         static const pyobj_t _lasti_py = { .type = &py_type_int, .as_int = $lasti };        \
         stack[++stack_current] = &_lasti_py;                                                \
     }                                                                                       \
-    stack[++stack_current] = ($obj);                                                        \
+    stack[++stack_current] = caught_exception;                                              \
     goto PY__EXCEPTION_HANDLER_LABEL;                                                       \
 
 #define PY_GLOBAL_BaseException_WELLKNOWN
