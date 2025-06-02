@@ -260,7 +260,7 @@ pyreturn_t py_call(
             // equal to `target`.
             return call_attr->as_callable(target, argc, argv, kwargc, kwargv);
         }
-        
+
         return call_attr->as_callable(self, argc, argv, kwargc, kwargv);
     }
 
@@ -283,4 +283,19 @@ const char* py_stringify(pyobj_t* target) {
         return py_stringify(converted.value);
 
     return converted.value->as_str;
+}
+
+bool py_isinstance(pyobj_t* target, pyobj_t* type) {
+    ENSURE_NOT_NULL(target, "py_isinstance");
+    ENSURE_NOT_NULL(type, "py_isinstance");
+
+    pyobj_t* current = type;
+    while (current != NULL) {
+        if (target->type == current)
+            return true;
+
+        current = type->as_type.base;
+    }
+
+    return false;
 }

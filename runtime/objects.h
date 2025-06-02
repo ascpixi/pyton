@@ -165,3 +165,5 @@ pyobj_t* py_get_attribute(pyobj_t* target, const char* name);
 // Sets the attribute with the name `name` on the given object to `value`.
 void py_set_attribute(pyobj_t* target, const char* name, pyobj_t* value);
 
+// Checks if `target` is an instance of `type`.
+bool py_isinstance(pyobj_t* target, pyobj_t* type);
