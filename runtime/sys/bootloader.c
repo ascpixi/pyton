@@ -34,13 +34,13 @@ static volatile LIMINE_REQUESTS_START_MARKER;
 __attribute__((used, section(".limine_requests_end")))
 static volatile LIMINE_REQUESTS_END_MARKER;
 
-size_t bl_get_hhdm_start() {
+size_t bl_get_hhdm_start(void) {
     ENSURE_NOT_NULL(hhdm_request.response, "bl_get_hhdm_start");
 
     return (size_t)hhdm_request.response->offset;
 }
 
-span_t(bl_memmap_entry_t) bl_get_memmap() {
+span_t(bl_memmap_entry_t) bl_get_memmap(void) {
     ENSURE_NOT_NULL(memmap_request.response, "bl_get_memmap");
 
     return (span_t(bl_memmap_entry_t)) {
@@ -49,7 +49,17 @@ span_t(bl_memmap_entry_t) bl_get_memmap() {
     };
 }
 
-bl_framebuffer_t bl_get_framebuffer() {
+bl_memmap_entry_t* bl_get_memmap_entries(void) {
+    ENSURE_NOT_NULL(memmap_request.response, "bl_get_memmap_entries");
+    return memmap_request.response->entries;
+}
+
+size_t bl_get_memmap_length(void) {
+    ENSURE_NOT_NULL(memmap_request.response, "bl_get_memmap_length");
+    return memmap_request.response->entry_count;
+}
+
+bl_framebuffer_t bl_get_framebuffer(void) {
     ENSURE_NOT_NULL(framebuffer_request.response, "bl_get_framebuffer");
 
     if (framebuffer_request.response->framebuffer_count == 0) {

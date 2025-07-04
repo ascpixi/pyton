@@ -16,7 +16,7 @@ typedef struct mm_freelist_entry {
 static mm_freelist_entry_t* mm_freelist_first;
 static mm_freelist_entry_t* mm_freelist_last;
 
-void mm_init() {
+void mm_init(void) {
     if (mm_was_initialized) {
         sys_panic("Attempted to initialize the memory manager twice.");
     }
@@ -58,7 +58,7 @@ void mm_init() {
         sys_panic("Cannot invoke '" $caller "' before 'mm_init' is called.");     \
     }                                                                             \
 
-void* mm_page_alloc() {
+void* mm_page_alloc(void) {
     ENSURE_INITIALIZED("mm_page_alloc");
 
     if (mm_freelist_first == NULL) {

@@ -9,10 +9,10 @@ typedef size_t physaddr_t;
 #define PAGE_SIZE 4096
 
 // Initializes the memory manager.
-void mm_init();
+void mm_init(void);
 
 // Allocates a single page of physical memory.
-void* mm_page_alloc();
+void* mm_page_alloc(void);
 
 // Frees a pointer previously allocated with `pmm_alloc`.
 void mm_page_free(void* ptr);
