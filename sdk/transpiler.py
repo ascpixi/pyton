@@ -116,7 +116,7 @@ class TranslationUnit:
 
         # This maps label indices (instr.label) to offsets.
         labels = sorted([
-            *dis.findlabels(fn.co_code),
+            *dis.findlabels(fn.co_code), # type: ignore
             *flatten([[x.start, x.end, x.target] for x in exc_table])
         ])
 
@@ -164,27 +164,29 @@ class TranslationUnit:
             # Important to mention: stack_current points to the stack slot that will be
             # popped next. When pushing, it needs to be incremented BEFORE writing to the
             # slot.
+            STACK_PUSH = "stack[++stack_current]"
+            STACK_POP = "stack[stack_current--]"
 
             match instr.opname:
                 case "RESUME" | "NOP":
                     pass # no-op
                 case "PUSH_NULL":
-                    body.append("stack[++stack_current] = NULL;")
+                    body.append(f"{STACK_PUSH} = NULL;")
                 case "LOAD_NAME":
                     assert instr.arg is not None
                     name = fn.co_names[instr.arg]
 
                     if is_entrypoint:
                         # Locals are equivalent to globals in the entrypoint.
-                        body.append(f'stack[++stack_current] = {self.mangle_global(name)};')
+                        body.append(f'{STACK_PUSH} = {self.mangle_global(name)};')
                     else:
                         # If loc_{name} is NULL, that means that the local of that name isn't defined, so we
                         # search in the global symbol table and the builtins.
-                        body.append(f'stack[++stack_current] = loc_{name} != null ? loc_{name} : {self.mangle_global(name)}')
+                        body.append(f'{STACK_PUSH} = loc_{name} != null ? loc_{name} : {self.mangle_global(name)}')
                 case "LOAD_CONST":
                     assert instr.arg is not None
                     const = fn.co_consts[instr.arg]
-                    body.append(f"stack[++stack_current] = &const_{instr.arg};");
+                    body.append(f"{STACK_PUSH} = &const_{instr.arg};");
                 case "CALL":
                     body.append(f"PY_OPCODE_CALL({instr.arg}, {exc_depth}, {exc_lasti});")
                 case "POP_TOP":
@@ -196,9 +198,9 @@ class TranslationUnit:
                     name = fn.co_names[instr.arg]
 
                     if is_entrypoint:
-                        body.append(f'{self.mangle_global(name)} = stack[stack_current--];')
+                        body.append(f'{self.mangle_global(name)} = {STACK_POP};')
                     else:
-                        body.append(f'loc_{fn.co_names[instr.arg]} = stack[stack_current--];')
+                        body.append(f'loc_{fn.co_names[instr.arg]} = {STACK_POP};')
                 case "COMPARE_OP":
                     assert instr.arg is not None
 
@@ -260,7 +262,7 @@ class TranslationUnit:
                         body.append(f"RAISE_CATCHABLE(caught_exception, {exc_depth}, {exc_lasti});")
                     elif instr.arg == 1:
                         # 1: `raise STACK[-1]` (raise exception instance or type at STACK[-1])
-                        body.append(f"RAISE_CATCHABLE(stack[stack_current--], {exc_depth}, {exc_lasti});")
+                        body.append(f"RAISE_CATCHABLE({STACK_POP}, {exc_depth}, {exc_lasti});")
                     else:
                         # TODO: arg == 2
                         raise Exception(f"RAISE_VARARGS argc = {instr.arg} not implemented")
@@ -272,7 +274,7 @@ class TranslationUnit:
                 case "COPY":
                     body.append(f"PY_OPCODE_COPY({instr.arg});")
                 case "RERAISE":
-                    body.append(f"RAISE_CATCHABLE(stack[stack_current--], {exc_depth}, {exc_lasti});")
+                    body.append(f"RAISE_CATCHABLE({STACK_POP}, {exc_depth}, {exc_lasti});")
                 
                     # if instr.oparg != 0:
                     #     # If oparg is non-zero, pops an additional value from the stack
