@@ -4,13 +4,14 @@
 #include "classes.h"
 #include "rtl/safety.h"
 
-#define DEFINE_EXCEPTION($name, $derives_from)                       \
-    CLASS($name)                                                     \
-        CLASS_ATTRIBUTES(_##$name) {};                               \
-    DEFINE_BUILTIN_TYPE(_##$name, &py_type_##$derives_from)          \
+#define DEFINE_EXCEPTION($name, $derives_from)                    \
+    CLASS($name)                                                  \
+        CLASS_ATTRIBUTES($name)                                   \
+        END_CLASS_ATTRIBUTES;                                     \
+    DEFINE_BUILTIN_TYPE($name, &py_type_##$derives_from)          \
 
 CLASS(BaseException)
-    CLASS_METHOD(_BaseException, __init__) {
+    CLASS_METHOD(BaseException, __init__) {
         if (argc != 1) {
             RAISE(Exception, "exceptions accept only one argument");
         }
@@ -19,16 +20,19 @@ CLASS(BaseException)
         return WITH_RESULT(&py_none);
     };
 
-    CLASS_METHOD(_BaseException, __str__) {
+    CLASS_METHOD(BaseException, __str__) {
         ENSURE_NOT_NULL(self, "BaseException.__str__");
+
+        
+
         return WITH_RESULT(py_get_attribute(self, "msg"));
     };
 
-    CLASS_ATTRIBUTES(_BaseException) {
-        HAS_CLASS_METHOD(_BaseException, __init__),
-        HAS_CLASS_METHOD(_BaseException, __str__)
-    };
-DEFINE_BUILTIN_TYPE(_BaseException, NULL);
+    CLASS_ATTRIBUTES(BaseException)
+        HAS_CLASS_METHOD(BaseException, __init__),
+        HAS_CLASS_METHOD(BaseException, __str__)
+    END_CLASS_ATTRIBUTES;
+DEFINE_BUILTIN_TYPE(BaseException, &py_type_object);
 
 DEFINE_EXCEPTION(Exception, BaseException);
 // DEFINE_EXCEPTION(ArithmeticError, Exception);

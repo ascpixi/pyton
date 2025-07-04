@@ -2,6 +2,8 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+
+#include "symbols.h"
 #include "rtl/vector.h"
 #include "sys/mm.h"
 
@@ -79,36 +81,48 @@ struct pyreturn {
     pyobj_t* exception;
 };
 
+// The type that represents the `object` Python class.
+extern const pyobj_t py_type_object;
+extern const pyobj_t* KNOWN_GLOBAL(object);
+#define PY_GLOBAL_object_WELLKNOWN
+
 // The type that represents the `bool` Python class.
 extern const pyobj_t py_type_bool;
+extern const pyobj_t* KNOWN_GLOBAL(bool);
 #define PY_GLOBAL_bool_WELLKNOWN
 
 // The type that represents the `tuple` Python class.
 extern const pyobj_t py_type_tuple;
+extern const pyobj_t* KNOWN_GLOBAL(tuple);
 #define PY_GLOBAL_tuple_WELLKNOWN
 
 // The type that represents the `list` Python class.
 extern const pyobj_t py_type_list;
+extern const pyobj_t* KNOWN_GLOBAL(list);
 #define PY_GLOBAL_list_WELLKNOWN
 
 // The type that represents the `type` Python class.
 extern const pyobj_t py_type_type;
+extern const pyobj_t* KNOWN_GLOBAL(type);
 #define PY_GLOBAL_type_WELLKNOWN
 
 // The type that represents the `str` Python class.
 extern const pyobj_t py_type_str;
+extern const pyobj_t* KNOWN_GLOBAL(str);
 #define PY_GLOBAL_str_WELLKNOWN
 
 // The type that represents the `int` Python class.
 extern const pyobj_t py_type_int;
+extern const pyobj_t* KNOWN_GLOBAL(int);
 #define PY_GLOBAL_int_WELLKNOWN
 
 // The type that represents the `float` Python class.
 extern const pyobj_t py_type_float;
+extern const pyobj_t* KNOWN_GLOBAL(float);
 #define PY_GLOBAL_float_WELLKNOWN
 
 // The type that represents the `NoneType` Python class.
-extern const pyobj_t py_type_nonetype;
+extern const pyobj_t py_type_NoneType;
 
 // The type that represents any callable. This serves to represent both `function`, `method`,
 // and `builtin_function_or_method`.

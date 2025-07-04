@@ -171,6 +171,7 @@ class TranslationUnit:
                 case "PUSH_NULL":
                     body.append("stack[++stack_current] = NULL;")
                 case "LOAD_NAME":
+                    assert instr.arg is not None
                     name = fn.co_names[instr.arg]
 
                     if is_entrypoint:
@@ -181,6 +182,7 @@ class TranslationUnit:
                         # search in the global symbol table and the builtins.
                         body.append(f'stack[++stack_current] = loc_{name} != null ? loc_{name} : {self.mangle_global(name)}')
                 case "LOAD_CONST":
+                    assert instr.arg is not None
                     const = fn.co_consts[instr.arg]
                     body.append(f"stack[++stack_current] = &const_{instr.arg};");
                 case "CALL":
@@ -190,6 +192,7 @@ class TranslationUnit:
                 case "RETURN_CONST":
                     body.append(f"return WITH_RESULT(&const_{instr.arg});")
                 case "STORE_NAME":
+                    assert instr.arg is not None
                     name = fn.co_names[instr.arg]
 
                     if is_entrypoint:
@@ -197,6 +200,8 @@ class TranslationUnit:
                     else:
                         body.append(f'loc_{fn.co_names[instr.arg]} = stack[stack_current--];')
                 case "COMPARE_OP":
+                    assert instr.arg is not None
+
                     # left operand is first popped value, right operand is second popped value
                     operation = dis.cmp_op[instr.arg >> 5]
                     coerce_bool = (instr.arg & 16) != 0 # fifth lowest bit
@@ -215,6 +220,7 @@ class TranslationUnit:
                     target_label = label_by_offset(instr.jump_target)
                     body.append(f"PY_OPCODE_POP_JUMP_IF_FALSE({target_label});")
                 case "BINARY_OP":
+                    assert instr.arg is not None
                     op = {
                         NB_ADD: "add",
                         NB_AND: "and",
@@ -264,14 +270,14 @@ class TranslationUnit:
                     # TODO: not sure what the difference between this and POP_TOP is?
                     body.append(f"stack_current--;")
                 case "COPY":
-                    body.append(f"PY_OPCODE_COPY();")
+                    body.append(f"PY_OPCODE_COPY({instr.arg});")
                 case "RERAISE":
-                    if instr.oparg != 0:
-                        # If oparg is non-zero, pops an additional value from the stack
-                        # which is used to set f_lasti of the current frame.
-                        body.append(f"stack_current--;")
-                    
                     body.append(f"RAISE_CATCHABLE(stack[stack_current--], {exc_depth}, {exc_lasti});")
+                
+                    # if instr.oparg != 0:
+                    #     # If oparg is non-zero, pops an additional value from the stack
+                    #     # which is used to set f_lasti of the current frame.
+                    #     body.append(f"stack_current--;")
                 case "CHECK_EXC_MATCH":
                     body.append("PY_OPCODE_CHECK_EXC_MATCH();")
                 case _:

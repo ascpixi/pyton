@@ -1,5 +1,8 @@
 #pragma once
 
+// Returns the `$x` macro as a string.
+#define MACRO_STRINGIFY($x) #$x
+
 // Performs null-coalescing across two values:
 //     - if the evaluation of `$a` is not `NULL`, it is returned, otherwise:
 //     - `$b` is returned.
