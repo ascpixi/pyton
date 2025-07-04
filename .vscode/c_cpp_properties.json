@@ -34,7 +34,24 @@
             "cStandard": "c17",
             "cppStandard": "c++17",
             "intelliSenseMode": "linux-gcc-x64",
-            "compilerArgs": ["-Wall", "-Wextra"]
+            "compilerArgs": [
+                "-Wall", "-Wno-unknown-pragmas",
+                "-Wextra",
+                "-Wno-unused-parameter",
+                "-Wno-incompatible-pointer-types",
+                "-masm=intel",
+                "-O2",
+                "-m64",
+                "-fno-stack-protector",
+                "-fno-stack-check",
+                "-mno-80387",
+                "-mno-mmx",
+                "-mno-sse",
+                "-mno-sse2",
+                "-ffreestanding",
+                "-nostdlib",
+                "-g"
+            ]
         }
     ],
     "version": 4
