@@ -25,7 +25,7 @@ typedef struct vector_any { _VECTOR_FIELDS(void) } vector_any_t;
 //      vector_t(int) vec = {};
 //      rtl_vector_append(&vec, 1);
 //      rtl_vector_append(&vec, 2);
-//      printf(vec.elements[0]); // prints 1
+//      printf("%d", vec.elements[0]); // prints 1
 // ```
 #define vector_t(T) struct vector_##T
 
