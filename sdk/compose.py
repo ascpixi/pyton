@@ -19,7 +19,11 @@ COMMON_GCC_FLAGS = [
     "-mno-sse2",
     "-ffreestanding",
     "-nostdlib",
-    "-g"
+    "-g",
+    "-ggdb",
+    "-g3",
+    "-gz=zlib",
+    "-fno-omit-frame-pointer"
 ]
 
 def compile_runtime(output_path: str, root: str, libc_headers_root: str, lib_headers: str):
