@@ -26,29 +26,33 @@
 #define NEW_EXCEPTION($type, $msg)                          \
     ({                                                      \
         pyobj_t* args[] = { ($msg) };                       \
-        py_call(($type), ($type), 1, args, 0, NULL).value;  \
+        py_call(($type), 1, args, 0, NULL).value;           \
     })
 
 // Similar to `NEW_EXCEPTION`, but also defines a string literal object as
 // a `static const` symbol.
 #define NEW_EXCEPTION_INLINE($type, $msg)                                           \
     ({                                                                              \
-        static const pyobj_t exc_literal_l## __LINE__ = PY_STR_LITERAL($msg);       \
+        static pyobj_t exc_literal_l## __LINE__ = PY_STR_LITERAL($msg);             \
         NEW_EXCEPTION(&py_type_##$type, &exc_literal_l## __LINE__);                 \
     })
+
+// NOLINTBEGIN(clang-diagnostic-incompatible-pointer-types-discards-qualifiers)
 
 // Unconditionally raise an exception and terminate the function's execution. This macro
 // should not be used by transpiled code.
 #define RAISE($type, $msg)                                                               \
     static const pyobj_t exc_literal_l## __LINE__ = PY_STR_LITERAL($msg);                \
     return WITH_EXCEPTION(NEW_EXCEPTION(&py_type_##$type, &exc_literal_l## __LINE__))    \
-    
+
+// NOLINTEND(clang-diagnostic-incompatible-pointer-types-discards-qualifiers)
+
 // Raise an exception that may be caught. This macro should only be used by transpiled code.
 #define RAISE_CATCHABLE($obj, $depth, $lasti)                                               \
     caught_exception = ($obj);                                                              \
-    stack_current = $depth - 1;                                                             \
-    if ($lasti != -1) {                                                                     \
-        static const pyobj_t _lasti_py = { .type = &py_type_int, .as_int = $lasti };        \
+    stack_current = ($depth) - 1;                                                           \
+    if (($lasti) != -1) {                                                                   \
+        static const pyobj_t _lasti_py = { .type = &py_type_int, .as_int = ($lasti) };      \
         stack[++stack_current] = &_lasti_py;                                                \
     }                                                                                       \
     stack[++stack_current] = caught_exception;                                              \

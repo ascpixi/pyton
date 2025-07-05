@@ -30,7 +30,7 @@ bool rtl_strequ(const char* s1, const char* s2) {
     return strcmp(s1, s2) == 0;
 }
 
-const char* rtl_strconcat(const char* s1, const char* s2) {
+char* rtl_strconcat(const char* s1, const char* s2) {
     size_t s1_len = strlen(s1);
     size_t s2_len = strlen(s2);
     size_t result_len = s1_len + s2_len + 1;

@@ -16,7 +16,7 @@
         return exception;                                                               \
     return NEW_EXCEPTION_INLINE(TypeError, "unsupported operand type(s) for " $op);     \
 
-#define BOTH_OF_TYPE($type) right->type == $type && left->type == $type
+#define BOTH_OF_TYPE($type) (right->type == ($type) && left->type == ($type))
 
 #define INT_OPERATION($op)                                               \
     if (BOTH_OF_TYPE(&py_type_int)) {                                    \
@@ -33,9 +33,9 @@ static bool arbitrary_op(
     pyobj_t** exception
 ) {
     pyobj_t* op_fn = py_get_attribute(right, attr_name);
-    if (op_fn != NULL && op_fn->type == &py_type_callable) {
+    if (op_fn != NULL && op_fn->type == &py_type_method) {
         pyobj_t* args[] = { left };
-        pyreturn_t result = op_fn->as_callable(right, 1, args, 0, NULL);
+        pyreturn_t result = py_call(op_fn, 1, args, 0, NULL);
 
         if (result.exception != NULL) {
             *exception = result.exception;

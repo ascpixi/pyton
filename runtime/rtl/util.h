@@ -3,6 +3,9 @@
 // Returns the `$x` macro as a string.
 #define MACRO_STRINGIFY($x) #$x
 
+// Returns the smaller of `$a` and `$b`.
+#define MIN($a, $b) ((($a) < ($b)) ? ($a) : ($b))
+
 // Performs null-coalescing across two values:
 //     - if the evaluation of `$a` is not `NULL`, it is returned, otherwise:
 //     - `$b` is returned.
@@ -24,7 +27,7 @@
 })
 
 // Returns the length (number of elements) of an array.
-#define LENGTH_OF($arr) (sizeof($arr) / sizeof(*$arr))
+#define LENGTH_OF($arr) (sizeof($arr) / sizeof(*($arr)))
 
 #define PP_RSEQ_N()                     \
     63,62,61,60,                        \

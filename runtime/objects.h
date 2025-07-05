@@ -29,7 +29,7 @@ typedef pyreturn_t (*py_fnptr_callable_t)(
 
 struct pyobj {
     // Represents the type of the object.
-    const pyobj_t* type;
+    pyobj_t* type;
 
     union {
         // Valid when `type` points to a non-intrinsic `pyobj_t` - as in, when
@@ -63,8 +63,17 @@ struct pyobj {
             bool is_intrinsic;
         } as_type;
 
-        // Valid when `type` points to `py_type_callable`.
-        py_fnptr_callable_t as_callable;
+        // Valid when `type` points to `py_type_function`.
+        py_fnptr_callable_t as_function;
+
+        // Valid when `type` points to `py_type_method`.
+        struct method_data {
+            // The object the method is bound to. This will be the `self` parameter.
+            pyobj_t* bound;
+
+            // The body of the method.
+            py_fnptr_callable_t body;
+        } as_method;
 
         // Valid when `type` points to `py_type_list` *or* `py_type_tuple`.
         vector_t(pyobj_t*) as_list;
@@ -124,9 +133,15 @@ extern const pyobj_t* KNOWN_GLOBAL(float);
 // The type that represents the `NoneType` Python class.
 extern const pyobj_t py_type_NoneType;
 
-// The type that represents any callable. This serves to represent both `function`, `method`,
-// and `builtin_function_or_method`.
-extern const pyobj_t py_type_callable;
+// Represents a Python function, which is not bound to an object instance. When invoking
+// it, `self` will always be `NULL` and will not be part of the positional arguments of
+// the function.
+extern const pyobj_t py_type_function;
+
+// Represents a Python method, which is bound to an object instance. When invoking it,
+// `self` will be equal to the instance the method is bound to, making it the first
+// positional argument of the function.
+extern const pyobj_t py_type_method;
 
 // The type that represents the `code` Python class. Objects of this type contain
 // a pointer to a compiled representation of a function or method. This is similar to
@@ -149,20 +164,31 @@ extern const pyobj_t py_false;
 // Converts a C integer into a Python one, allocating it on the heap.
 pyobj_t* py_alloc_int(int64_t x);
 
+// Creates a function wrapper over the given callable.
+pyobj_t* py_alloc_function(py_fnptr_callable_t callable);
+
+// Creates a method bound to a given object instance.
+pyobj_t* py_alloc_method(
+    py_fnptr_callable_t callable,
+    pyobj_t* bound
+);
+
+// Allocates an empty `type` instance.
+pyobj_t* py_alloc_type(pyobj_t* base);
+
 // Allocates an arbitrary non-intrinsic Python object with the given type.
 pyobj_t* py_alloc_object(pyobj_t* type);
 
 // Defines the structure of a `pyobj_t` that defines a string literal.
-#define PY_STR_LITERAL($content) { .type = &py_type_str, .as_str = $content }
+#define PY_STR_LITERAL($content) { .type = &py_type_str, .as_str = ($content) }
 
 // Defines the structure of a `pyobj_t` that defines an integer constant.
-#define PY_INT_CONSTANT($num) { .type = &py_type_int, .as_int = $num }
+#define PY_INT_CONSTANT($num) { .type = &py_type_int, .as_int = ($num) }
 
 // Attempts to call the given object, assuming it is callable. This function succeeds when
 // target is either of type `py_type_builtin_callable`, or when it contains a `__call__` attribute.
 pyreturn_t py_call(
     pyobj_t* target,
-    pyobj_t* self,
     int argc,
     pyobj_t** argv,
     int kwargc,

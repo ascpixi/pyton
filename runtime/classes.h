@@ -18,8 +18,8 @@
                 .length = sizeof(py_type##$name##_attrs_initial) / sizeof(symbol_t),  \
                 .capacity = sizeof(py_type##$name##_attrs_initial) / sizeof(symbol_t) \
             },                                                                        \
-            .is_intrinsic = $intrinsic,                                               \
-            .base = $inherits_from                                                    \
+            .is_intrinsic = ($intrinsic),                                             \
+            .base = ($inherits_from)                                                  \
         }                                                                             \
     };                                                                                \
     const pyobj_t* pyglobal_##$name = &py_type##$name;                                \
@@ -52,10 +52,10 @@
 // Begins the class attribute list for type `$name`, where `$name` is a underscore-prefixed
 // typename. The name will be displayed as `$name_display`. This macro should be used when
 // the typename may conflict with a C keyword or macro definition.
-#define CLASS_ATTRIBUTES_E($name, $name_display)                                        \
-    static const pyobj_t py_type##$name##_name = PY_STR_LITERAL($name_display);         \
-    symbol_t py_type##$name##_attrs_initial[] = {                                       \
-        { .name = "__name__", .value = &py_type##$name##_name },                        \
+#define CLASS_ATTRIBUTES_E($name, $name_display)                                  \
+    static pyobj_t py_type##$name##_name = PY_STR_LITERAL($name_display);         \
+    symbol_t py_type##$name##_attrs_initial[] = {                                 \
+        { .name = "__name__", .value = &py_type##$name##_name },                  \
 
 // Begins the class attribute list for type `$name`.
 #define CLASS_ATTRIBUTES($name) CLASS_ATTRIBUTES_E(_##$name, #$name)
@@ -76,9 +76,9 @@
 // conflict with C macro definitions. `$name` must be prefixed with `_`.
 #define CLASS_METHOD_E($type, $name)                                        \
     PY_DEFINE(py_type##$type##_method_##$name##_fn);                        \
-    static const pyobj_t py_type##$type##_method_##$name = {                \
-        .type = &py_type_callable,                                          \
-        .as_callable = &py_type##$type##_method_##$name##_fn                \
+    static pyobj_t py_type##$type##_method_##$name = {                      \
+        .type = &py_type_function,                                          \
+        .as_function = &py_type##$type##_method_##$name##_fn                \
     };                                                                      \
     PY_DEFINE(py_type##$type##_method_##$name##_fn)                         
 
@@ -87,4 +87,4 @@
 
 // Verifies that the type of the given `self` pointer is either `type`, or inherits
 // from `type`.
-void py_verify_self_arg(pyobj_t* self, pyobj_t* type);
+void py_verify_self_arg(pyobj_t* self, const pyobj_t* type);

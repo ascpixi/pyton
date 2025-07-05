@@ -15,7 +15,7 @@
 #define PY_OPCODE_CALL($argc, $exc_depth, $lasti)                                       \
     {                                                                                   \
         pyobj_t* call_argv[$argc];                                                      \
-        for (int i = 0; i < $argc; i++) {                                               \
+        for (int i = 0; i < ($argc); i++) {                                             \
             call_argv[i] = stack[stack_current--];                                      \
         }                                                                               \
         pyobj_t* self = stack[stack_current--];                                         \
@@ -46,10 +46,10 @@
     }
 
 // Push the i-th item to the top of the stack without removing it from its original location.
-#define PY_OPCODE_COPY($i)                              \
-    {                                                   \
-        pyobj_t* tmp = stack[stack_current - $i + 1];   \
-        stack[++stack_current] = tmp;                   \
+#define PY_OPCODE_COPY($i)                                \
+    {                                                     \
+        pyobj_t* tmp = stack[stack_current - ($i) + 1];   \
+        stack[++stack_current] = tmp;                     \
     }
 
 // Performs exception matching for except. Tests whether the STACK[-2] is an exception
@@ -78,6 +78,19 @@
         if (exc != NULL) {                                            \
             RAISE_CATCHABLE(exc, $exc_depth, $lasti);                 \
         }                                                             \
+    }
+
+// Performs the following:
+// ```
+//      obj = STACK.pop()
+//      value = STACK.pop()
+//      obj.<$name> = value
+// ```
+#define PY_OPCODE_STORE_ATTR($name)                                 \
+    {                                                               \
+        pyobj_t* obj = (pyobj_t*)(stack[stack_current--]);          \
+        pyobj_t* value = (pyobj_t*)(stack[stack_current--]);        \
+        py_set_attribute(obj, $name, value);                        \
     }
 
 // The following functions are implemented in 'opcodes_cmp.c'.

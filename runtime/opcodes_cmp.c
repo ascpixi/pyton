@@ -9,7 +9,7 @@
     pyobj_t* left = stack[(*stack_current)--];    \
     pyobj_t* right = stack[(*stack_current)--];   \
 
-#define BOTH_OF_TYPE($type) right->type == $type && left->type == $type
+#define BOTH_OF_TYPE($type) (right->type == ($type) && left->type == ($type))
 
 #define INT_COMPARISON($op)                                              \
     if (BOTH_OF_TYPE(&py_type_int)) {                                    \
@@ -23,6 +23,31 @@
         return NULL;                                                     \
     }                                                                    \
 
+static bool arbitrary_compare_side(
+    pyobj_t* side1,
+    pyobj_t* side2,
+    const char* attr_name,
+    void** stack,
+    pyobj_t** out_exception,
+    int* stack_current
+) {
+    pyobj_t* compare_fn = py_get_attribute(side1, attr_name);
+    if (compare_fn == NULL || compare_fn->type != &py_type_method)
+        return false;
+
+    pyobj_t* args[] = { side2 };
+
+    pyreturn_t result = py_call(compare_fn, 1, args, 0, NULL);
+    if (result.exception != NULL) {
+        *out_exception = result.exception;
+    }
+    else {
+        STACK_PUSH(result.value);
+    }
+
+    return true;
+}
+
 static bool arbitrary_compare(
     void** stack,
     int* stack_current,
@@ -31,35 +56,11 @@ static bool arbitrary_compare(
     pyobj_t* left,
     pyobj_t** out_exception
 ) {
-    pyobj_t* compare_fn = py_get_attribute(right, attr_name);
-    if (compare_fn != NULL && compare_fn->type == &py_type_callable) {
-        pyobj_t* args[] = { left };
-
-        pyreturn_t result = compare_fn->as_callable(right, 1, args, 0, NULL);
-        if (result.exception != NULL) {
-            *out_exception = result.exception;
-        }
-        else {
-            STACK_PUSH(result.value);
-        }
-
+    if (arbitrary_compare_side(right, left, attr_name, stack, out_exception, stack_current))
         return true;
-    }
 
-    compare_fn = py_get_attribute(left, attr_name);
-    if (compare_fn != NULL && compare_fn->type == &py_type_callable) {
-        pyobj_t* args[] = { right };
-
-        pyreturn_t result = compare_fn->as_callable(left, 1, args, 0, NULL);
-        if (result.exception != NULL) {
-            *out_exception = result.exception;
-        }
-        else {
-            STACK_PUSH(result.value);
-        }
-
+    if (arbitrary_compare_side(left, right, attr_name, stack, out_exception, stack_current))
         return true;
-    }
 
     return false;
 }

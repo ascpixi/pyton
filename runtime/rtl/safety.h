@@ -4,7 +4,7 @@
 #include "util.h"
 
 #define ENSURE_NOT_NULL($value, $function)                          \
-    if ($value == NULL) {                                           \
+    if (($value) == NULL) {                                         \
         sys_panic($function ": '" #$value "' was null.");           \
     }                                                               \
 

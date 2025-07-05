@@ -14,4 +14,4 @@ size_t strlen(const char* str);
 bool rtl_strequ(const char* str1, const char* str2);
 
 // Combines two strings into one.
-const char* rtl_strconcat(const char* str1, const char* str2);
+char* rtl_strconcat(const char* str1, const char* str2);

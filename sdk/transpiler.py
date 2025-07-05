@@ -1,5 +1,6 @@
 import re
 import dis
+import inspect
 import textwrap
 from types import CodeType
 from typing import Protocol
@@ -92,6 +93,38 @@ class TranslationUnit:
             
         body.append("// (constants end)")
         body.append("")
+
+        for varname in fn.co_varnames:
+            body.append(f"pyobj_t* var_{varname} = NULL;")
+
+        # Arguments also boil down to variables - their names are in the following order
+        # in the co_varnames list:
+        #   - positional-or-keyword arguments,
+        #   - positional arguments,
+        #   - keyword arguments (after `*` or `*<name>`),
+        #   - varargs tuple name e.g. `*args` (if inspect.CO_VARARGS is set),
+        #   - varkeywords tuple name e.g. `**kwargs` (if inspect.CO_VARKEYWORDS is set).
+        
+        if (fn.co_flags & inspect.CO_VARARGS) == 0:
+            # We don't have a varargs tuple, so we may encounter a situation where
+            # we have too many positional arguments.
+            body.append(f"PY_POS_ARG_MAX({fn.co_argcount});")
+        
+        if fn.co_argcount != 0:
+            # TODO: This will need to change when we add support for default arguments, which
+            #       Python implements in an extremely silly way, where they are not even part
+            #       of the code object itself.
+            body.append(f"PY_POS_ARG_MIN({fn.co_argcount});")
+
+        # Copy positional-or-keyword + positional arguments
+        body.append(
+            "const pyobj_t**[] pos_args = { " + ", ".join(
+                f"&var_{fn.co_varnames[i]}" for i in range(fn.co_argcount)
+            ) + " };"
+        )
+
+        # This will also account for 'self'.
+        body.append(f"PY_POS_ARGS_TO_VARS({fn.co_argcount});")
 
         # We try to use local variables for actual locals if this isn't the entrypoint function.
         # If it *is* the entrypoint function, then locals are equivalent to globals.
@@ -187,6 +220,19 @@ class TranslationUnit:
                     assert instr.arg is not None
                     const = fn.co_consts[instr.arg]
                     body.append(f"{STACK_PUSH} = &const_{instr.arg};");
+                case "LOAD_GLOBAL":
+                    assert instr.arg is not None
+                    name = fn.co_names[instr.arg >> 1]
+
+                    # Changed in version 3.11: If the low bit of namei is set, then a
+                    # NULL is pushed to the stack before the global variable.
+                    if (instr.arg & 1) == 1:
+                        body.append(f"stack[++stack_current] = NULL;")
+
+                    body.append(f'{STACK_PUSH} = {self.mangle_global(name)};')
+                case "LOAD_FAST":
+                    assert instr.arg is not None
+                    body.append(f'{STACK_PUSH} = var_{fn.co_varnames[instr.arg]};')
                 case "CALL":
                     body.append(f"PY_OPCODE_CALL({instr.arg}, {exc_depth}, {exc_lasti});")
                 case "POP_TOP":
@@ -201,6 +247,13 @@ class TranslationUnit:
                         body.append(f'{self.mangle_global(name)} = {STACK_POP};')
                     else:
                         body.append(f'loc_{fn.co_names[instr.arg]} = {STACK_POP};')
+                case "STORE_FAST":
+                    assert instr.arg is not None
+                    body.append(f"var_{instr.arg} = (pyobj_t*)({STACK_POP});")
+                case "STORE_ATTR":
+                    assert instr.arg is not None
+                    name = fn.co_names[instr.arg]
+                    body.append(f'PY_OPCODE_STORE_ATTR("{name}");')
                 case "COMPARE_OP":
                     assert instr.arg is not None
 
