@@ -30,6 +30,20 @@ typedef pyreturn_t (*py_fnptr_callable_t)(
     symbol_t* kwargv
 );
 
+typedef struct type_data {
+    // Represents the attribute table of the class.
+    vector_t(symbol_t) class_attributes;
+
+    // The class this one inherits from. If there is no such class, this
+    // field is equal to `NULL`.
+    pyobj_t* base;
+
+    // If `true`, objects of this type are qualified as "intrinsic", meaning
+    // that they do not hold an attribute table that would usually be accessed
+    // via `as_any`.
+    bool is_intrinsic;
+} type_data_t;
+
 struct pyobj {
     // Represents the type of the object.
     pyobj_t* type;
@@ -52,19 +66,7 @@ struct pyobj {
         double as_float;
 
         // Valid when `type` points to `py_type_type`.
-        struct type_data {
-            // Represents the attribute table of the class.
-            vector_t(symbol_t) class_attributes;
-
-            // The class this one inherits from. If there is no such class, this
-            // field is equal to `NULL`.
-            pyobj_t* base;
-
-            // If `true`, objects of this type are qualified as "intrinsic", meaning
-            // that they do not hold an attribute table that would usually be accessed
-            // via `as_any`.
-            bool is_intrinsic;
-        } as_type;
+        type_data_t* as_type;
 
         // Valid when `type` points to `py_type_function`.
         py_fnptr_callable_t as_function;
@@ -92,6 +94,16 @@ struct pyreturn {
     pyobj_t* value;
     pyobj_t* exception;
 };
+
+typedef enum known_attr {
+    KNOWN_ATTR_NAME,
+    KNOWN_ATTR_NEW,
+    KNOWN_ATTR_INIT,
+    KNOWN_ATTR_STR,
+    KNOWN_ATTR_GET,
+    KNOWN_ATTR_ITER,
+    KNOWN_ATTR_NEXT
+} known_attr_t;
 
 // The type that represents the `object` Python class.
 extern pyobj_t py_type_object;

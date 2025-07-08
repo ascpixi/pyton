@@ -79,7 +79,7 @@ pyobj_t* py_coerce_exception(pyobj_t* from) {
                 return NOT_NULL(result.value);
             }
 
-            current = current->as_type.base;
+            current = current->as_type->base;
         }
 
         // This is a `type`, but it doesn't inherit from `BaseException`!

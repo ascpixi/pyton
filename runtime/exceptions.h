@@ -81,7 +81,7 @@ extern pyobj_t* KNOWN_GLOBAL(TypeError);
 //      - any subtype of `BaseException` or `BaseException` itself. In this case,
 //        `from` is returned.
 //      - a `type`. The type represented by the object must be assignable to
-//        `BaseException` (i.e. one of its `as_type.base`'s must be `&py_type_BaseException`
+//        `BaseException` (i.e. one of its `as_type->base`'s must be `&py_type_BaseException`
 //        or it needs to be a `&py_type_BaseException` itself).
 //
 // If the object does not meet any of the above criteria, a `TypeError` is returned

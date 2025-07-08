@@ -9,20 +9,18 @@
 
 // Equivalent to `DEFINE_TYPE`, but specialized for types that have names that may conflict
 // with C macro definitions. `$name` must be prefixed with `_`.
-#define DEFINE_TYPE_E($name, $intrinsic, $inherits_from)                              \
-    pyobj_t py_type##$name = {                                                        \
-        .type = &py_type_type,                                                        \
-        .as_type = {                                                                  \
-            .class_attributes = {                                                     \
-                .elements = py_type##$name##_attrs_initial,                           \
-                .length = sizeof(py_type##$name##_attrs_initial) / sizeof(symbol_t),  \
-                .capacity = sizeof(py_type##$name##_attrs_initial) / sizeof(symbol_t) \
-            },                                                                        \
-            .is_intrinsic = ($intrinsic),                                             \
-            .base = ($inherits_from)                                                  \
-        }                                                                             \
-    };                                                                                \
-    pyobj_t* pyglobal_##$name = &py_type##$name;                                      \
+#define DEFINE_TYPE_E($name, $intrinsic, $inherits_from)                                    \
+    type_data_t py_type_data##$name = {                                                     \
+        .class_attributes = {                                                               \
+            .elements = py_type##$name##_attrs_initial,                                     \
+            .length = sizeof(py_type##$name##_attrs_initial) / sizeof(symbol_t),            \
+            .capacity = sizeof(py_type##$name##_attrs_initial) / sizeof(symbol_t)           \
+        },                                                                                  \
+        .is_intrinsic = ($intrinsic),                                                       \
+        .base = ($inherits_from)                                                            \
+    };                                                                                      \
+    pyobj_t py_type##$name = { .type = &py_type_type, .as_type = &py_type_data##$name };    \
+    pyobj_t* pyglobal_##$name = &py_type##$name;                                            \
 
 // Defines a Python type of name `$name`, leaving the attribute table undefined. The attribute
 // table's name is expected to be `py_type_<name>_attrs`, and its type is required to be

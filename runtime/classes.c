@@ -10,9 +10,9 @@ void py_verify_self_arg(pyobj_t* self, const pyobj_t* type) {
     if (self->type == type)
         return;
 
-    pyobj_t* current_base = self->type->as_type.base;
+    pyobj_t* current_base = self->type->as_type->base;
     while (current_base != type && current_base != NULL) {
-        current_base = current_base->as_type.base;
+        current_base = current_base->as_type->base;
     }
 
     if (current_base == NULL) {

@@ -212,7 +212,7 @@ static pyobj_t* py_get_class_attribute(
 ) {
     ASSERT(type->type == &py_type_type);
 
-    const vector_t(symbol_t)* attributes = &type->as_type.class_attributes;
+    const vector_t(symbol_t)* attributes = &type->as_type->class_attributes;
     for (size_t i = 0; i < attributes->length; i++) {
         symbol_t attribute = attributes->elements[i];
 
@@ -296,7 +296,7 @@ static pyobj_t* py_get_attribute_arbitrary(
     // intrinsic. If it *is* intrinsic, we don't even hold an attribute table in the first
     // place. For example, `int`s are intrinsic, as they hold a single integer value, not
     // attributes - you cannot do `123.a = 2`.
-    if (!target->type->as_type.is_intrinsic) {
+    if (!target->type->as_type->is_intrinsic) {
         const vector_t(symbol_t)* attributes = &target->as_any;
 
         for (size_t i = 0; i < attributes->length; i++) {
@@ -331,7 +331,7 @@ static pyobj_t* py_get_attribute_arbitrary(
         if (attr != NULL)
             return attr;
         
-        current_base = current_base->as_type.base;
+        current_base = current_base->as_type->base;
     }
 
     return NULL;
@@ -355,7 +355,7 @@ void py_set_attribute(pyobj_t* target, const char* name, pyobj_t* value) {
     ENSURE_NOT_NULL(target);
     ENSURE_NOT_NULL(value);
 
-    if (target->type->as_type.is_intrinsic && target->type != &py_type_type)
+    if (target->type->as_type->is_intrinsic && target->type != &py_type_type)
         sys_panic("The given object is of an immutable type, and cannot be assigned to.");
 
     vector_t(symbol_t)* attributes;
@@ -367,7 +367,7 @@ void py_set_attribute(pyobj_t* target, const char* name, pyobj_t* value) {
         //      print(C.attr)   # prints "123"
         // ...thus assigning to a 'type' object is equivalent to assigning to
         // its class attribute table.
-        attributes = &target->as_type.class_attributes;
+        attributes = &target->as_type->class_attributes;
     }
     else {
         attributes = &target->as_any;
@@ -411,9 +411,10 @@ pyobj_t* py_alloc_method(py_fnptr_callable_t callable, pyobj_t* bound) {
 pyobj_t* py_alloc_type(pyobj_t* base) {
     pyobj_t* obj = mm_heap_alloc(sizeof(pyobj_t));
     obj->type = &py_type_type;
-    obj->as_type.base = NOT_NULL(base);
-    obj->as_type.is_intrinsic = false;
-    obj->as_type.class_attributes = (vector_t(symbol_t)) {};
+    obj->as_type = mm_heap_alloc(sizeof(type_data_t));
+    obj->as_type->base = NOT_NULL(base);
+    obj->as_type->is_intrinsic = false;
+    obj->as_type->class_attributes = (vector_t(symbol_t)) {};
     return obj;
 }
 
@@ -522,7 +523,7 @@ bool py_isinstance(const pyobj_t* target, const pyobj_t* type) {
         if (current == type)
             return true;
 
-        current = current->as_type.base;
+        current = current->as_type->base;
     }
 
     return false;
