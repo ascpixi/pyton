@@ -21,6 +21,7 @@ subprocess.run([
     "-M", "q35",
     "-cdrom", args.iso,
     "-boot", "d",
+    "-d", "cpu_reset",
     "-m", "2G",
     "--no-reboot",
     "--no-shutdown",
