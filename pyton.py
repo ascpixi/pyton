@@ -11,6 +11,7 @@ from sdk.compose import compile_and_link, create_iso
 parser = argparse.ArgumentParser()
 parser.add_argument("-i", "--input", type=str, help="the main entry-point file")
 parser.add_argument("-a", "--artifacts", default="artifacts", help="the directory to write all artifacts to")
+parser.add_argument("-O", "--optimize", action="store_true", help="enables GCC optimizations")
 args = parser.parse_args()
 
 entrypoint_source = open(args.input).read()
@@ -32,7 +33,8 @@ kernel_binary = compile_and_link(
     "./runtime",
     "./lib/freestnd-c-hdrs",
     "./lib",
-    args.artifacts
+    args.artifacts,
+    args.optimize
 )
 
 tmp_iso_root = os.path.join(args.artifacts, "obj", "iso")

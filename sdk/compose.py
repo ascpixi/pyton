@@ -26,7 +26,13 @@ COMMON_GCC_FLAGS = [
     "-fno-omit-frame-pointer"
 ]
 
-def compile_runtime(output_path: str, root: str, libc_headers_root: str, lib_headers: str):
+def compile_runtime(
+    output_path: str,
+    root: str,
+    libc_headers_root: str,
+    lib_headers: str,
+    optimize = False
+):
     """
     Compiles the Pyton runtime as a static library. `root` determines the root directory of
     the runtime, while `output_path` determines the path where the library will be written to.
@@ -45,9 +51,10 @@ def compile_runtime(output_path: str, root: str, libc_headers_root: str, lib_hea
 
         run([
             "gcc",
-            "-Wall", "-Wno-unknown-pragmas", "-Wextra", "-Wno-unused-parameter",
+            "-Wall", "-Wno-unknown-pragmas", "-Wextra", "-Wno-unused-parameter", "-Wnull-dereference",
+            "-fanalyzer",
             "-masm=intel",
-            "-O2",
+            "-O3" if optimize else "-O0",
             "-m64",
             *COMMON_GCC_FLAGS,
             "-I", root,
@@ -66,7 +73,8 @@ def compile_and_link(
     runtime_root: str,
     libc_headers_root: str,
     lib_path: str,
-    artifact_dir: str
+    artifact_dir: str,
+    optimize = False
 ):
     """
     Compiles and links a C source file that was transpiled from Python by Pyton to a ready
@@ -79,7 +87,7 @@ def compile_and_link(
     kernel_obj_file = os.path.join(obj_dir, kernel_name + ".o")
     runtime_obj_file = os.path.join(obj_dir, "runtime.a")
 
-    compile_runtime(runtime_obj_file, runtime_root, libc_headers_root, lib_path)
+    compile_runtime(runtime_obj_file, runtime_root, libc_headers_root, lib_path, optimize)
 
     print(f"(...) compiling kernel... {filename} -> {kernel_obj_file}")
 
@@ -93,6 +101,7 @@ def compile_and_link(
         "-fdata-sections",
         "-m64",
         "-fno-PIC",
+        "-O3" if optimize else "-O0",
         *COMMON_GCC_FLAGS,
         "-mcmodel=kernel",
         "-isystem", runtime_root,
