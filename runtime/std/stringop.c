@@ -1,9 +1,13 @@
 #include "stringop.h"
 
 #include "memory.h"
+#include "safety.h"
 #include "sys/mm.h"
 
 int strcmp(const char* s1, const char* s2) {
+    if (s1 == NULL || s2 == NULL)
+        return s1 == s2;
+
     while (*s1 && (*s1 == *s2)) {
         s1++;
         s2++;
@@ -26,11 +30,14 @@ size_t strlen(const char* str) {
     return p - str;
 }
 
-bool rtl_strequ(const char* s1, const char* s2) {
+bool std_strequ(const char* s1, const char* s2) {
     return strcmp(s1, s2) == 0;
 }
 
-char* rtl_strconcat(const char* s1, const char* s2) {
+char* std_strconcat(const char* s1, const char* s2) {
+    ENSURE_NOT_NULL(s1);
+    ENSURE_NOT_NULL(s2)
+
     size_t s1_len = strlen(s1);
     size_t s2_len = strlen(s2);
     size_t result_len = s1_len + s2_len + 1;

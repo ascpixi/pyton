@@ -3,6 +3,21 @@
 #include "objects.h"
 #include "symbols.h"
 #include "exceptions.h"
+#include "std/safety.h"
+
+// Provides the stack item at position `-$i`. For example, `STACK_ITEM(1)` returns
+// the top of the stack (`STACK[-1]`).
+#define STACK_ITEM($i) stack[stack_current - ($i) + 1]
+
+#define STACK_POP()  stack[stack_current--]
+#define STACK_PUSH() stack[++stack_current]
+#define STACK_PEEK() stack[stack_current]
+
+// Pushes to the stack, assuming `stack` is a `void**` and `stack_current` is a `int*`.
+#define STACK_PUSH_INDIRECT(x) stack[++(*stack_current)] = (x)
+
+// Pops from the stack, assuming `stack` is a `void**` and `stack_current` is a `int*`.
+#define STACK_POP_INDIRECT() stack[(*stack_current)--]
 
 // Performs a `CALL` on the given stack, reading the parameters and callable from the stack,
 // and pushing the return value to the stack.
@@ -15,24 +30,31 @@
 #define PY_OPCODE_CALL($argc, $exc_depth, $lasti)                                       \
     {                                                                                   \
         pyobj_t* call_argv[$argc];                                                      \
-        for (int i = 0; i < ($argc); i++) {                                             \
-            call_argv[i] = stack[stack_current--];                                      \
+        for (int i = ($argc) - 1; i >= 0; i--) {                                        \
+            call_argv[i] = STACK_POP();                                                 \
         }                                                                               \
-        pyobj_t* self = stack[stack_current--];                                         \
-        pyobj_t* callable = stack[stack_current--];                                     \
-        pyreturn_t result = py_call(callable, self, $argc, call_argv, 0, NULL);         \
+        pyobj_t* self = STACK_POP();                                                    \
+        pyobj_t* callable = STACK_POP();                                                \
+        pyreturn_t result = py_call(callable, $argc, call_argv, 0, NULL, self);         \
         if (result.exception != NULL) {                                                 \
             RAISE_CATCHABLE(result.exception, $exc_depth, $lasti);                      \
         }                                                                               \
-        stack[++stack_current] = result.value;                                          \
+        STACK_PUSH() = result.value;                                                    \
     }
 
 // Pops a value from the stack, and jumps to `$label` if the popped object has a boolean
 // value of `false`. Assumes that the object on the stack is an exact `bool` operand.
 // If the object is not of type `py_type_bool`, then the behavior is undefined.
 #define PY_OPCODE_POP_JUMP_IF_FALSE($label)                         \
-    if ( ((pyobj_t*)stack[stack_current--])->as_bool == false )     \
-        goto $label;                                                \
+    if ( ((pyobj_t*)STACK_POP())->as_bool == false )                \
+        goto $label;         
+
+// Pops a value from the stack, and jumps to `$label` if the popped object has a boolean
+// value of `true`. Assumes that the object on the stack is an exact `bool` operand.
+// If the object is not of type `py_type_bool`, then the behavior is undefined.
+#define PY_OPCODE_POP_JUMP_IF_TRUE($label)                          \
+    if ( ((pyobj_t*)STACK_POP())->as_bool == true )                 \
+        goto $label;
 
 // Performs the following operations, in order:
 // - pops a value from the stack,
@@ -40,16 +62,16 @@
 // - pushes the value originally popped back to the stack. 
 #define PY_OPCODE_PUSH_EXC_INFO()                   \
     {                                               \
-        pyobj_t* tmp = stack[stack_current--];      \
-        stack[++stack_current] = caught_exception;  \
-        stack[++stack_current] = tmp;               \
+        pyobj_t* tmp = STACK_POP();                 \
+        STACK_PUSH() = caught_exception;            \
+        STACK_PUSH() = tmp;                         \
     }
 
 // Push the i-th item to the top of the stack without removing it from its original location.
 #define PY_OPCODE_COPY($i)                                \
     {                                                     \
-        pyobj_t* tmp = stack[stack_current - ($i) + 1];   \
-        stack[++stack_current] = tmp;                     \
+        pyobj_t* tmp = (pyobj_t*)(STACK_ITEM($i));        \
+        STACK_PUSH() = tmp;                               \
     }
 
 // Performs exception matching for except. Tests whether the STACK[-2] is an exception
@@ -59,7 +81,7 @@
         pyobj_t* sm2 = stack[stack_current - 1];                        \
         pyobj_t* sm1 = stack[stack_current];                            \
         stack_current--;                                                \
-        stack[++stack_current] = AS_PY_BOOL(py_isinstance(sm2, sm1));   \
+        STACK_PUSH() = AS_PY_BOOL(py_isinstance(sm2, sm1));             \
     }
 
 // Performs the given comparison on the stack.
@@ -88,10 +110,97 @@
 // ```
 #define PY_OPCODE_STORE_ATTR($name)                                 \
     {                                                               \
-        pyobj_t* obj = (pyobj_t*)(stack[stack_current--]);          \
-        pyobj_t* value = (pyobj_t*)(stack[stack_current--]);        \
+        pyobj_t* obj = (pyobj_t*)(STACK_POP());                     \
+        pyobj_t* value = (pyobj_t*)(STACK_POP());                   \
         py_set_attribute(obj, $name, value);                        \
     }
+
+// Replaces `STACK[-1]` with `getattr(STACK[-1], $name)`.
+// This is equivalent to the `LOAD_ATTR` op-code when the low bit of `namei` is not set.
+#define PY_OPCODE_LOAD_ATTR($name)                                   \
+    {                                                                \
+        pyobj_t* attr = (pyobj_t*)(STACK_PEEK());                    \
+        STACK_PEEK() = NOT_NULL(py_get_attribute(attr, ($name)));    \
+    }
+
+// Attempts to load a method named `$name` from the `STACK[-1]` object.
+// `STACK[-1]` is popped. This bytecode distinguishes two cases:
+// - if `STACK[-1]` has a method with the correct name, the bytecode pushes the
+//   unbound method and `STACK[-1]`. `STACK[-1]` will be used as the first argument
+//   (`self`) by `CALL` or `CALL_KW` when calling the unbound method.
+// - Otherwise, `NULL` and the object returned by the attribute lookup are pushed.
+//
+// This op-code is generated when the retrieved attribute will be called.
+#define PY_OPCODE_LOAD_ATTR_CALLABLE($name)                                         \
+    {                                                                               \
+        pyobj_t* owner = (pyobj_t*)(STACK_POP());                                   \
+        pyobj_t* attr;                                                              \
+        bool is_unbound = py_get_method_attribute(owner, ($name), &attr);           \
+        STACK_PUSH() = is_unbound ? owner : NULL;                                   \
+        STACK_PUSH() = attr;                                                        \
+    }                     
+
+// Swap the top of the stack with the i-th element:
+// ```
+//      STACK[-i], STACK[-1] = STACK[-1], STACK[-i]
+// ```
+#define PY_OPCODE_SWAP($i)                             \
+    {                                                  \
+        pyobj_t* tmp = (pyobj_t*)(STACK_ITEM($i));     \
+        STACK_ITEM($i) = STACK_PEEK();                 \
+        STACK_PEEK() = tmp;                            \
+    }
+
+// Sets the annotations (`STACK[-2]`) for a given function (`STACK[-1]`).
+// This currently only removes the annotations from the stack.
+#define PY_OPCODE_SET_FUNC_ATTR_ANNOTATIONS()           \
+    {                                                   \
+        pyobj_t* fn = (pyobj_t*)STACK_POP();            \
+        pyobj_t* annotations = (pyobj_t*)STACK_POP();   \
+        STACK_PUSH() = fn;                              \
+    }
+
+// Implements `STACK[-1] = iter(STACK[-1])`.
+#define PY_OPCODE_GET_ITER($exc_depth, $lasti)                                      \
+    {                                                                               \
+        pyreturn_t status = py_opcode_get_iter((void**)&stack, &stack_current);     \
+        if (status.exception != NULL) {                                             \
+            RAISE_CATCHABLE(status.exception, $exc_depth, $lasti);                  \
+        }                                                                           \
+    }
+
+// `STACK[-1]` is an iterator. Call its `__next__()` method. If this yields a new value,
+// push it on the stack (leaving the iterator below it). If the iterator indicates it
+// is exhausted then the byte code counter is incremented by delta.
+#define PY_OPCODE_FOR_ITER($label, $exc_depth, $lasti)                                      \
+    {                                                                                       \
+        bool exhausted;                                                                     \
+        pyreturn_t status = py_opcode_for_iter((void**)&stack, &stack_current, &exhausted); \
+        if (status.exception != NULL) {                                                     \
+            RAISE_CATCHABLE(status.exception, $exc_depth, $lasti);                          \
+        }                                                                                   \
+        if (exhausted)                                                                      \
+            goto $label;                                                                    \
+    }
+
+// Special case for the `LOAD_NAME` op-code, where the op-code is present within
+// a class initialization function (passed into `builtins.__build_class__`).
+// Locals are equivalent to `self` attributes in class bodies.
+#define PY_OPCODE_LOAD_NAME_CLASS($name)                     \
+    STACK_PUSH() = COALESCE_2(                               \
+        py_get_attribute(self, #$name),                      \
+        KNOWN_GLOBAL($name)                                  \
+    );
+
+// The following functions are implemented in 'opcodes.c'.
+
+// Compliments `PY_OPCODE_FOR_ITER`. `out_exhausted` is set to `true` if the iterator
+// was exhausted and the byte code counter should be incremented by delta. If the
+// return value has an associated exception, it should be raised.
+pyreturn_t py_opcode_for_iter(void** stack, int* stack_current, bool* out_exhausted);
+
+// Compliments `PY_OPCODE_GET_ITER`.
+pyreturn_t py_opcode_get_iter(void** stack, int* stack_current);
 
 // The following functions are implemented in 'opcodes_cmp.c'.
 

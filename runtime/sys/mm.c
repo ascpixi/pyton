@@ -3,7 +3,7 @@
 #include <stdbool.h>
 #include "bootloader.h"
 #include "core.h"
-#include "rtl/safety.h"
+#include "std/safety.h"
 
 static bool mm_was_initialized;
 
@@ -75,7 +75,7 @@ void* mm_page_alloc(void) {
 
 void mm_page_free(void* ptr) {
     ENSURE_INITIALIZED("mm_page_free");
-    ENSURE_NOT_NULL(ptr, "mm_page_free");
+    ENSURE_NOT_NULL(ptr);
 
     if (mm_freelist_first == NULL) {
         // Oof... we're very low on memory.
@@ -108,7 +108,5 @@ void* mm_heap_alloc(size_t count) {
 }
 
 void mm_heap_free(void* ptr) {
-    ENSURE_NOT_NULL(ptr, "mm_heap_free");
-
-    mm_page_free(ptr);
+    mm_page_free(NOT_NULL(ptr));
 }

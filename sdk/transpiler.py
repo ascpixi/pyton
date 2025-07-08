@@ -3,7 +3,7 @@ import dis
 import inspect
 import textwrap
 from types import CodeType
-from typing import Protocol
+from typing import Protocol, Any
 
 from .bytecode import *
 from .util import error, flatten
@@ -43,7 +43,7 @@ class TranslationUnit:
     def mangle_global(self, name: str):
         return "pyglobal__" + sanitize_identifier(name)
 
-    def translate(self, fn: CodeType, is_entrypoint = False):
+    def translate(self, fn: CodeType, is_entrypoint = False, is_class_body = False):
         """
         Transpiles the given code fragment into a C function, returning its mangled name.
         The function itself can be retrieved via `self.transpiled`. If the function was already
@@ -51,6 +51,9 @@ class TranslationUnit:
 
         `is_entrypoint` should be set to `True` if the fragment is supposed to be ran after
         system startup.
+        
+        `is_class_body` should be set to `True` if the fragment corresponds to a class body,
+        and will be passed into `builtins.__build_class__`.
         """
         mangled_name = self.mangle(fn)
         if mangled_name in self.transpiled:
@@ -59,7 +62,7 @@ class TranslationUnit:
         defined_preprocessor_syms = ["PY__EXCEPTION_HANDLER_LABEL"]
 
         body = [
-            f"// Function {fn.co_qualname}, declared on line {fn.co_firstlineno}",
+            f"// Function {fn.co_qualname}, declared on line {fn.co_firstlineno}, class body: {'yes' if is_class_body else 'no'}",
             f"void* stack[{fn.co_stacksize + 1}] = {{}};",
             f"int stack_current = -1;",
             f"pyobj_t* caught_exception = NULL;",
@@ -68,69 +71,124 @@ class TranslationUnit:
 
         body.append("")
         body.append("// (constants start)")
-        for i, const in enumerate(fn.co_consts):
+
+        bytecode = dis.Bytecode(fn)
+        exc_table: list[ExceptionTableEntry] = bytecode.exception_entries
+
+        def place_const(body: list[str], const: Any, name: str):
             if type(const) is str:
-                body.append(f'static const pyobj_t const_{i} = {{ .type = &py_type_str, .as_str = "{const.replace("\n", "\\n").replace("\r", "")}" }};')
+                body.append(f'static pyobj_t {name} = {{ .type = &py_type_str, .as_str = "{const.replace("\n", "\\n").replace("\r", "")}" }};')
             elif type(const) is int:
-                body.append(f"static const pyobj_t const_{i} = {{ .type = &py_type_int, .as_int = {const} }};")
+                body.append(f"static pyobj_t {name} = {{ .type = &py_type_int, .as_int = {const} }};")
             elif type(const) is float:
-                body.append(f"static const pyobj_t const_{i} = {{ .type = &py_type_float, .as_float = {const} }};")
+                body.append(f"static pyobj_t {name} = {{ .type = &py_type_float, .as_float = {const} }};")
             elif type(const) is bool:
-                body.append(f"#define const_{i} (py_true)" if const else f"#define const_{i} (py_false)")
-                defined_preprocessor_syms.append(f"const_{i}")
+                body.append(f"#define {name} (py_true)" if const else f"#define {name} (py_false)")
+                defined_preprocessor_syms.append(name)
+            elif type(const) is tuple:
+                for i, item in enumerate(const):
+                    place_const(body, item, f"{name}_item_{i}")
+                
+                body.append(
+                    f"static pyobj_t* {name}_elements[] = " + "{ " +
+                    ", ".join(f"&{name}_item_{i}" for i in range(len(const))) +
+                    " };"
+                )
+
+                body.append("static pyobj_t " + name + " = {")
+                body.append("    .type = &py_type_tuple,")
+                body.append("    .as_list = {")
+                body.append(f"        .elements = {name}_elements,")
+                body.append(f"        .length = {len(const)},")
+                body.append(f"        .capacity = {len(const)}")
+                body.append("    }")
+                body.append("};")
             elif type(const).__name__ == "code":
                 # If we have a 'code' constant, this means that this is a callable.
                 code: CodeType = const
-                target_fn = self.translate(code)
-                body.append(f"static const pyobj_t const_{i} = {{ .type = &py_type_callable, .as_callable = &{target_fn} }};")
+
+                # We first need to check if this constant is loaded as the first code
+                # constant before a __build_class__ invocation. If it is, then we
+                # classify it as a class body.
+                searching_for_build_class = True
+                code_is_class_body = False
+
+                for instr in bytecode:
+                    if searching_for_build_class:
+                        if instr.opname == "LOAD_BUILD_CLASS":
+                            searching_for_build_class = False
+
+                        continue
+
+                    # We've encountered a LOAD_BUILD_CLASS instruction, now we
+                    # check if any LOAD_CONST's appear that reference this code constant
+                    if instr.opname != "LOAD_CONST":
+                        continue
+
+                    if instr.arg is not None and fn.co_consts[instr.arg] == const:
+                        code_is_class_body = True
+                        break
+
+                target_fn = self.translate(code, False, code_is_class_body)
+                body.append(f"static pyobj_t {name} = {{ .type = &py_type_function, .as_function = &{target_fn} }};")
             elif const is None:
-                body.append(f"#define const_{i} (py_none)")
-                defined_preprocessor_syms.append(f"const_{i}")
+                body.append(f"#define {name} (py_none)")
+                defined_preprocessor_syms.append(name)
             else:
                 error(f"unknown constant type '{type(const).__name__}'!")
                 error(f"the value of the constant is {const}")
+                error(f"the full disassembly of the target function is displayed below")
+                print(dis.dis(fn))
                 raise Exception(f"Unknown constant type: {type(const).__name__}")
+
+        for i, const in enumerate(fn.co_consts):
+            place_const(body, const, f"const_{i}")
             
         body.append("// (constants end)")
         body.append("")
 
-        for varname in fn.co_varnames:
-            body.append(f"pyobj_t* var_{varname} = NULL;")
+        # Locals behave differently in both the entry-point and class body scope.
+        # In the entry-point, locals are equivalent to globals.
+        # In class bodies, locals are equivalent to `self`.
+        if not is_entrypoint and not is_class_body:
+            body.append("int argc_all = argc + (( self != NULL ? 1 : 0 ));")
 
-        # Arguments also boil down to variables - their names are in the following order
-        # in the co_varnames list:
-        #   - positional-or-keyword arguments,
-        #   - positional arguments,
-        #   - keyword arguments (after `*` or `*<name>`),
-        #   - varargs tuple name e.g. `*args` (if inspect.CO_VARARGS is set),
-        #   - varkeywords tuple name e.g. `**kwargs` (if inspect.CO_VARKEYWORDS is set).
-        
-        if (fn.co_flags & inspect.CO_VARARGS) == 0:
-            # We don't have a varargs tuple, so we may encounter a situation where
-            # we have too many positional arguments.
-            body.append(f"PY_POS_ARG_MAX({fn.co_argcount});")
-        
-        if fn.co_argcount != 0:
-            # TODO: This will need to change when we add support for default arguments, which
-            #       Python implements in an extremely silly way, where they are not even part
-            #       of the code object itself.
-            body.append(f"PY_POS_ARG_MIN({fn.co_argcount});")
-
-        # Copy positional-or-keyword + positional arguments
-        body.append(
-            "const pyobj_t**[] pos_args = { " + ", ".join(
-                f"&var_{fn.co_varnames[i]}" for i in range(fn.co_argcount)
-            ) + " };"
-        )
-
-        # This will also account for 'self'.
-        body.append(f"PY_POS_ARGS_TO_VARS({fn.co_argcount});")
-
-        # We try to use local variables for actual locals if this isn't the entrypoint function.
-        # If it *is* the entrypoint function, then locals are equivalent to globals.
-        if not is_entrypoint:
-            for name in fn.co_names:
+            for name in fn.co_varnames:
                 body.append(f"pyobj_t* loc_{name} = NULL;")
+
+            # Arguments also boil down to variables - their names are in the following order
+            # in the co_varnames list:
+            #   - positional-or-keyword arguments,
+            #   - positional arguments,
+            #   - keyword arguments (after `*` or `*<name>`),
+            #   - varargs tuple name e.g. `*args` (if inspect.CO_VARARGS is set),
+            #   - varkeywords tuple name e.g. `**kwargs` (if inspect.CO_VARKEYWORDS is set).
+            
+            if (fn.co_flags & inspect.CO_VARARGS) == 0:
+                # We don't have a varargs tuple, so we may encounter a situation where
+                # we have too many positional arguments.
+                body.append(f"PY_POS_ARG_MAX({fn.co_argcount});")
+            
+            if fn.co_argcount != 0:
+                # TODO: This will need to change when we add support for default arguments, which
+                #       Python implements in an extremely silly way, where they are not even part
+                #       of the code object itself.
+                body.append(f"PY_POS_ARG_MIN({fn.co_argcount});")
+
+            # Copy positional-or-keyword + positional arguments
+            body.append(
+                "pyobj_t** pos_args[] = { " + ", ".join(
+                    f"&loc_{fn.co_varnames[i]}" for i in range(fn.co_argcount)
+                ) + " };"
+            )
+
+            # This will also account for 'self'.
+            body.append(f"PY_POS_ARGS_TO_VARS({fn.co_argcount});")
+
+        if is_class_body:
+            # For class bodies, self must ALWAYS be provided. This is special-cased
+            # in the runtime.
+            body.append(f'ENSURE_NOT_NULL(self);')
 
         # All names might be global. For example:
         #   def ex():
@@ -142,11 +200,9 @@ class TranslationUnit:
         for name in fn.co_names:
             self.known_names.add(name)
 
+        body.append("")
         body.append("// (function body start)")
         
-        bytecode = dis.Bytecode(fn)
-        exc_table: list[ExceptionTableEntry] = bytecode.exception_entries
-
         # This maps label indices (instr.label) to offsets.
         labels = sorted([
             *dis.findlabels(fn.co_code), # type: ignore
@@ -212,6 +268,9 @@ class TranslationUnit:
                     if is_entrypoint:
                         # Locals are equivalent to globals in the entrypoint.
                         body.append(f'{STACK_PUSH} = {self.mangle_global(name)};')
+                    elif is_class_body:
+                        # Locals are equivalent to `self` attributes in class bodies.
+                        body.append(f"PY_OPCODE_LOAD_NAME_CLASS({name});")
                     else:
                         # If loc_{name} is NULL, that means that the local of that name isn't defined, so we
                         # search in the global symbol table and the builtins.
@@ -219,7 +278,7 @@ class TranslationUnit:
                 case "LOAD_CONST":
                     assert instr.arg is not None
                     const = fn.co_consts[instr.arg]
-                    body.append(f"{STACK_PUSH} = &const_{instr.arg};");
+                    body.append(f"{STACK_PUSH} = &const_{instr.arg};")
                 case "LOAD_GLOBAL":
                     assert instr.arg is not None
                     name = fn.co_names[instr.arg >> 1]
@@ -232,9 +291,26 @@ class TranslationUnit:
                     body.append(f'{STACK_PUSH} = {self.mangle_global(name)};')
                 case "LOAD_FAST":
                     assert instr.arg is not None
-                    body.append(f'{STACK_PUSH} = var_{fn.co_varnames[instr.arg]};')
+                    
+                    if not is_class_body:
+                        body.append(f'{STACK_PUSH} = loc_{fn.co_varnames[instr.arg]};')
+                    else:
+                        body.append(f'{STACK_PUSH} = NOT_NULL(py_get_attribute(self, "{fn.co_varnames[instr.arg]}"));')
+                case "LOAD_FAST_LOAD_FAST":
+                    assert instr.arg is not None
+
+                    if not is_class_body:
+                        body.append(f'{STACK_PUSH} = loc_{fn.co_varnames[instr.arg >> 4]};')
+                        body.append(f'{STACK_PUSH} = loc_{fn.co_varnames[instr.arg & 15]};')
+                    else:
+                        body.append(f'{STACK_PUSH} = NOT_NULL(py_get_attribute(self, "{fn.co_varnames[instr.arg >> 4]}"));')
+                        body.append(f'{STACK_PUSH} = NOT_NULL(py_get_attribute(self, "{fn.co_varnames[instr.arg & 15]}"));')
                 case "CALL":
                     body.append(f"PY_OPCODE_CALL({instr.arg}, {exc_depth}, {exc_lasti});")
+                case "RETURN_VALUE":
+                    # We don't do STACK_POP here, since it would be redundant to decrement
+                    # the stack_current counter.
+                    body.append(f"return WITH_RESULT(stack[stack_current]);")
                 case "POP_TOP":
                     body.append(f"stack_current--;")
                 case "RETURN_CONST":
@@ -245,15 +321,30 @@ class TranslationUnit:
 
                     if is_entrypoint:
                         body.append(f'{self.mangle_global(name)} = {STACK_POP};')
+                    elif is_class_body:
+                        body.append(f'py_set_attribute(self, "{name}", {STACK_POP});')
                     else:
                         body.append(f'loc_{fn.co_names[instr.arg]} = {STACK_POP};')
                 case "STORE_FAST":
                     assert instr.arg is not None
-                    body.append(f"var_{instr.arg} = (pyobj_t*)({STACK_POP});")
+                    name = fn.co_varnames[instr.arg]
+
+                    if not is_class_body:
+                        body.append(f"loc_{name} = (pyobj_t*)({STACK_POP});")
+                    else:
+                        body.append(f'py_set_attribute(self, "{name}", {STACK_POP});')
                 case "STORE_ATTR":
                     assert instr.arg is not None
                     name = fn.co_names[instr.arg]
                     body.append(f'PY_OPCODE_STORE_ATTR("{name}");')
+                case "LOAD_ATTR":
+                    assert instr.arg is not None
+                    name = fn.co_names[instr.arg >> 1]
+                    if (instr.arg & 1) == 0:
+                        # The low bit of namei is not set
+                        body.append(f'PY_OPCODE_LOAD_ATTR("{name}");')
+                    else:
+                        body.append(f'PY_OPCODE_LOAD_ATTR_CALLABLE("{name}");')
                 case "COMPARE_OP":
                     assert instr.arg is not None
 
@@ -274,6 +365,9 @@ class TranslationUnit:
                 case "POP_JUMP_IF_FALSE":
                     target_label = label_by_offset(instr.jump_target)
                     body.append(f"PY_OPCODE_POP_JUMP_IF_FALSE({target_label});")
+                case "POP_JUMP_IF_TRUE":
+                    target_label = label_by_offset(instr.jump_target)
+                    body.append(f"PY_OPCODE_POP_JUMP_IF_TRUE({target_label});")
                 case "BINARY_OP":
                     assert instr.arg is not None
                     op = {
@@ -321,11 +415,34 @@ class TranslationUnit:
                         raise Exception(f"RAISE_VARARGS argc = {instr.arg} not implemented")
                 case "PUSH_EXC_INFO":
                     body.append("PY_OPCODE_PUSH_EXC_INFO();")
+                case "MAKE_FUNCTION":
+                    body.append("// (already a function)")
+                case "SET_FUNCTION_ATTRIBUTE":
+                    assert instr.arg is not None
+                    if instr.arg == 0x01:
+                        # a tuple of default values for positional-only and
+                        # positional-or-keyword parameters in positional order
+                        raise Exception("Default values for arguments are not yet supported.")
+                    elif instr.arg == 0x02:
+                        # a dictionary of keyword-only parameters’ default values
+                        raise Exception("Default values for arguments are not yet supported.")
+                    elif instr.arg == 0x04:
+                        # a tuple of strings containing parameters’ annotations
+                        body.append("PY_OPCODE_SET_FUNC_ATTR_ANNOTATIONS();")
+                    elif instr.arg == 0x08:
+                        # a tuple containing cells for free variables, making a closure
+                        raise Exception("Closures are not yet supported.")
+                    else:
+                        raise Exception(f"Unknown SET_FUNCTION_ATTRIBUTE flag: 0x{instr.arg:X}")
+                case "LOAD_BUILD_CLASS":
+                    body.append(f"{STACK_PUSH} = {self.mangle_global("__build_class__")};")
                 case "POP_EXCEPT":
                     # TODO: not sure what the difference between this and POP_TOP is?
                     body.append(f"stack_current--;")
                 case "COPY":
                     body.append(f"PY_OPCODE_COPY({instr.arg});")
+                case "SWAP":
+                    body.append(f"PY_OPCODE_SWAP({instr.arg});")
                 case "RERAISE":
                     body.append(f"RAISE_CATCHABLE({STACK_POP}, {exc_depth}, {exc_lasti});")
                 
@@ -335,6 +452,14 @@ class TranslationUnit:
                     #     body.append(f"stack_current--;")
                 case "CHECK_EXC_MATCH":
                     body.append("PY_OPCODE_CHECK_EXC_MATCH();")
+                case "GET_ITER":
+                    body.append(f"PY_OPCODE_GET_ITER({exc_depth}, {exc_lasti});")
+                case "FOR_ITER":
+                    target_label = label_by_offset(instr.jump_target)
+                    body.append(f"PY_OPCODE_FOR_ITER({target_label}, {exc_depth}, {exc_lasti});")
+                case "END_FOR":
+                    # Removes the top-of-stack item. Equivalent to POP_TOP.
+                    body.append(f"stack_current--;")
                 case _:
                     error(f"unknown opcode '{instr.opname}'!")
                     error(f"the full disassembly of the target function is displayed below")
@@ -372,7 +497,7 @@ class TranslationUnit:
         lines.append("")
         lines.append('#include <pyton_runtime.h>')
         lines.append("")
-        lines.append('#pragma GCC diagnostic ignored "-Wdiscarded-qualifiers"')
+        lines.append('#pragma GCC diagnostic ignored "-Wunused-label"')
         lines.append("")
 
         lines.append("// Transpiled function declarations")

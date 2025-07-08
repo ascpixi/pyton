@@ -2,6 +2,10 @@
 
 #include "objects.h"
 
+// Always set to `"__main__"`.
+extern pyobj_t* KNOWN_GLOBAL(__name__);
+#define PY_GLOBAL___name___WELLKNOWN
+
 // Initializes all runtime and system services, and prepares the system to run arbitrary
 // C-transpiled Python code.
 void sys_init(void);

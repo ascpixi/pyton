@@ -10,4 +10,4 @@ void* memset(void* dest, int val, size_t len);
 
 // Moves the specified memory area `offset` bytes backwards (to lower addresses).
 // This can be visualized as moving the entire area to the left.
-void rtl_memmove_back(void* target, size_t n, size_t offset);
+void std_memmove_back(void* target, size_t n, size_t offset);

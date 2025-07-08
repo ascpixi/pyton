@@ -5,26 +5,28 @@
 #include "safety.h"
 
 static void verify_index(size_t length, int index) {
-    if (length <= index) {
-        sys_panic("Attempted to access an out-of-bounds index of a vector.");
-    }
-
     if (index < 0) {
         sys_panic("Attempted to access a negative index of a vector.");
     }
+
+    if (length <= (size_t)index) {
+        sys_panic("Attempted to access an out-of-bounds index of a vector.");
+    }
 }
 
-void rtl_vector_any_set(vector_any_t* vec, int index, unit_t value) {
-    ENSURE_NOT_NULL(vec, "rtl_vector_any_set");
-    ENSURE_NOT_NULL(value.data, "rtl_vector_any_set");
+void std_vector_any_set(vector_any_t* vec, int index, unit_t value) {
+    ENSURE_NOT_NULL(vec);
+    ENSURE_NOT_NULL(value.data);
+    ASSERT(value.size > 0);
     verify_index(vec->length, index);
 
-    rtl_unit_set(vec->elements, index, value);
+    std_unit_set(vec->elements, index, value);
 }
 
-void rtl_vector_any_append(vector_any_t* vec, unit_t value) {
-    ENSURE_NOT_NULL(vec, "rtl_vector_any_append");
-    ENSURE_NOT_NULL(value.data, "rtl_vector_any_append");
+void std_vector_any_append(vector_any_t* vec, unit_t value) {
+    ENSURE_NOT_NULL(vec);
+    ENSURE_NOT_NULL(value.data);
+    ASSERT(value.size > 0);
 
     if (vec->elements == NULL || vec->length == 0 || vec->capacity == 0) {
         // This vector hasn't been initialized yet.
@@ -32,7 +34,7 @@ void rtl_vector_any_append(vector_any_t* vec, unit_t value) {
         vec->elements = mm_heap_alloc(4 * value.size);
         vec->length = 1;
         vec->capacity = 4;
-        rtl_vector_any_set(vec, 0, value);
+        std_vector_any_set(vec, 0, value);
         return;
     }
 
@@ -53,16 +55,19 @@ void rtl_vector_any_append(vector_any_t* vec, unit_t value) {
         mm_heap_free(old_elements);
     }
 
-    rtl_vector_any_set(vec, vec->length, value);
     vec->length++;
+    std_vector_any_set(vec, vec->length - 1, value);
 }
 
-void rtl_vector_any_remove(vector_any_t* vec, int index, size_t unit_size) {
-    ENSURE_NOT_NULL(vec, "rtl_vector_any_remove");
+void std_vector_any_remove(vector_any_t* vec, int index, size_t unit_size) {
+    ENSURE_NOT_NULL(vec);
+    ASSERT(unit_size > 0);
     verify_index(vec->length, index);
 
+    size_t idx = (size_t)index;
+
     // If the index points to the last element, we don't have to move anything.
-    if (index == vec->length - 1) {
+    if (idx == vec->length - 1) {
         vec->length--;
         return;
     }
@@ -71,9 +76,9 @@ void rtl_vector_any_remove(vector_any_t* vec, int index, size_t unit_size) {
     // the element at `index` itself.
 
     // Move all elements after index one position to the left
-    uint8_t* dest = (uint8_t*)vec->elements + ((index + 1) * unit_size);
-    size_t area_size = (vec->length - index - 1) * unit_size;
+    uint8_t* dest = (uint8_t*)vec->elements + ((idx + 1) * unit_size);
+    size_t area_size = (vec->length - idx - 1) * unit_size;
 
-    rtl_memmove_back(dest, area_size, unit_size);
+    std_memmove_back(dest, area_size, unit_size);
     vec->length--;
 }

@@ -1,7 +1,10 @@
 #pragma once
 
-// Returns the `$x` macro as a string.
-#define MACRO_STRINGIFY($x) #$x
+#define MACRO_AS_STRING_DETAIL(x) #x
+#define MACRO_AS_STRING(x) MACRO_AS_STRING_DETAIL(x)
+
+#define MACRO_CONCAT_DETAIL(x, y) x ## y
+#define MACRO_CONCAT(x, y) MACRO_CONCAT_DETAIL(x, y)
 
 // Returns the smaller of `$a` and `$b`.
 #define MIN($a, $b) ((($a) < ($b)) ? ($a) : ($b))
@@ -49,4 +52,3 @@
 
 #define PP_NARG_(...) PP_ARG_N(__VA_ARGS__)
 #define NUM_VA_ARGS(...) PP_NARG_(__VA_ARGS__, PP_RSEQ_N())
-

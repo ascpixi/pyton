@@ -1,7 +1,7 @@
 #pragma once
 
 #include <limine/limine.h>
-#include "../rtl/span.h"
+#include "../std/span.h"
 
 // Currently the memory map types reflect the ones used by Limine. This technically is
 // an implementation detail but we don't expect to change bootloaders any time soon.
@@ -29,4 +29,4 @@ size_t bl_get_memmap_length(void);
 bl_memmap_entry_t* bl_get_memmap_entries(void);
 
 // Gets the framebuffer for the primary display device.
-bl_framebuffer_t bl_get_framebuffer();
+bl_framebuffer_t bl_get_framebuffer(void);

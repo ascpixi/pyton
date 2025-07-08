@@ -2,9 +2,8 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-
 #include "symbols.h"
-#include "rtl/vector.h"
+#include "std/vector.h"
 #include "sys/mm.h"
 
 // Represents a symbol - an object associated with a name. Symbols may represent attributes,
@@ -14,6 +13,10 @@ USES_VECTOR_FOR(symbol_t);
 
 // Represents any Python object.
 typedef struct pyobj pyobj_t;
+
+// Represents a pointer to a `pyobj_t`. Mainly used with macro-based type definitions.
+typedef pyobj_t* pyobj_ptr_t;
+USES_VECTOR_FOR(pyobj_ptr_t);
 
 // Represents the return value of a callable object (a Python function or method).
 typedef struct pyreturn pyreturn_t;
@@ -76,7 +79,7 @@ struct pyobj {
         } as_method;
 
         // Valid when `type` points to `py_type_list` *or* `py_type_tuple`.
-        vector_t(pyobj_t*) as_list;
+        vector_t(pyobj_ptr_t) as_list;
     };
 };
 
@@ -91,72 +94,72 @@ struct pyreturn {
 };
 
 // The type that represents the `object` Python class.
-extern const pyobj_t py_type_object;
-extern const pyobj_t* KNOWN_GLOBAL(object);
+extern pyobj_t py_type_object;
+extern pyobj_t* KNOWN_GLOBAL(object);
 #define PY_GLOBAL_object_WELLKNOWN
 
 // The type that represents the `bool` Python class.
-extern const pyobj_t py_type_bool;
-extern const pyobj_t* KNOWN_GLOBAL(bool);
+extern pyobj_t py_type_bool;
+extern pyobj_t* KNOWN_GLOBAL(bool);
 #define PY_GLOBAL_bool_WELLKNOWN
 
 // The type that represents the `tuple` Python class.
-extern const pyobj_t py_type_tuple;
-extern const pyobj_t* KNOWN_GLOBAL(tuple);
+extern pyobj_t py_type_tuple;
+extern pyobj_t* KNOWN_GLOBAL(tuple);
 #define PY_GLOBAL_tuple_WELLKNOWN
 
 // The type that represents the `list` Python class.
-extern const pyobj_t py_type_list;
-extern const pyobj_t* KNOWN_GLOBAL(list);
+extern pyobj_t py_type_list;
+extern pyobj_t* KNOWN_GLOBAL(list);
 #define PY_GLOBAL_list_WELLKNOWN
 
 // The type that represents the `type` Python class.
-extern const pyobj_t py_type_type;
-extern const pyobj_t* KNOWN_GLOBAL(type);
+extern pyobj_t py_type_type;
+extern pyobj_t* KNOWN_GLOBAL(type);
 #define PY_GLOBAL_type_WELLKNOWN
 
 // The type that represents the `str` Python class.
-extern const pyobj_t py_type_str;
-extern const pyobj_t* KNOWN_GLOBAL(str);
+extern pyobj_t py_type_str;
+extern pyobj_t* KNOWN_GLOBAL(str);
 #define PY_GLOBAL_str_WELLKNOWN
 
 // The type that represents the `int` Python class.
-extern const pyobj_t py_type_int;
-extern const pyobj_t* KNOWN_GLOBAL(int);
+extern pyobj_t py_type_int;
+extern pyobj_t* KNOWN_GLOBAL(int);
 #define PY_GLOBAL_int_WELLKNOWN
 
 // The type that represents the `float` Python class.
-extern const pyobj_t py_type_float;
-extern const pyobj_t* KNOWN_GLOBAL(float);
+extern pyobj_t py_type_float;
+extern pyobj_t* KNOWN_GLOBAL(float);
 #define PY_GLOBAL_float_WELLKNOWN
 
 // The type that represents the `NoneType` Python class.
-extern const pyobj_t py_type_NoneType;
+extern pyobj_t py_type_NoneType;
 
 // Represents a Python function, which is not bound to an object instance. When invoking
 // it, `self` will always be `NULL` and will not be part of the positional arguments of
 // the function.
-extern const pyobj_t py_type_function;
+extern pyobj_t py_type_function;
 
 // Represents a Python method, which is bound to an object instance. When invoking it,
 // `self` will be equal to the instance the method is bound to, making it the first
 // positional argument of the function.
-extern const pyobj_t py_type_method;
+extern pyobj_t py_type_method;
 
 // The type that represents the `code` Python class. Objects of this type contain
 // a pointer to a compiled representation of a function or method. This is similar to
 // py_type_builtin_callable, but instead of the runtime providing the function implementation,
 // it's user-provided code.
-extern const pyobj_t py_type_code;
+extern pyobj_t py_type_code;
 
 // Represents `None`. This object always has the type of `py_type_nonetype` (`NoneType`).
-extern const pyobj_t py_none;
+extern pyobj_t py_none;
 
 // Represents `True`. This object always has the type of `py_type_bool` (`bool`).
-extern const pyobj_t py_true;
+extern pyobj_t py_true;
 
 // Represents `False`. This object always has the type of `py_type_bool` (`bool`).
-extern const pyobj_t py_false;
+extern pyobj_t py_false;
 
 // Returns `py_true` if `$x` evaluates to `true`, and `py_false` otherwise.
 #define AS_PY_BOOL($x) (($x) ? &py_true : &py_false)
@@ -185,14 +188,27 @@ pyobj_t* py_alloc_object(pyobj_t* type);
 // Defines the structure of a `pyobj_t` that defines an integer constant.
 #define PY_INT_CONSTANT($num) { .type = &py_type_int, .as_int = ($num) }
 
+// Defines a string literal inline.
+#define PY_STR($content)                                                                   \
+    ({                                                                                     \
+        static pyobj_t MACRO_CONCAT(py_strliteral_l, __LINE__) = PY_STR_LITERAL($content); \
+        &MACRO_CONCAT(py_strliteral_l, __LINE__);                                          \
+    })
+
 // Attempts to call the given object, assuming it is callable. This function succeeds when
 // target is either of type `py_type_builtin_callable`, or when it contains a `__call__` attribute.
+//
+// `self` may be specified when the called object is a function that represents an unbound method.
+// It will be passed to the underlying `py_fnptr_callable_t`-compatible function, becoming
+// the first parameter. If `self` is specified, but `target` is not a `function`, a kernel
+// panic will be issued.
 pyreturn_t py_call(
     pyobj_t* target,
     int argc,
     pyobj_t** argv,
     int kwargc,
-    symbol_t* kwargv
+    symbol_t* kwargv,
+    pyobj_t* self
 );
 
 // Calls `__str__` on the given object, with no parameters.
@@ -202,8 +218,16 @@ const char* py_stringify(pyobj_t* target);
 // given object. If no such attribute exists, returns `NULL` instead.
 pyobj_t* py_get_attribute(pyobj_t* target, const char* name);
 
+// Equivalent to `py_get_attribute`, but if the attribute's value is a `function`,
+// its `__get__` method is NOT called, returning the unbound version of the method.
+// In this case, the function returns `true`.
+//
+// This is mostly used by the special-cased `LOAD_ATTR` op-code variant, which avoids
+// a `method` object allocation.
+bool py_get_method_attribute(pyobj_t* target, const char* name, pyobj_t** out_attr);
+
 // Sets the attribute with the name `name` on the given object to `value`.
 void py_set_attribute(pyobj_t* target, const char* name, pyobj_t* value);
 
 // Checks if `target` is an instance of `type`.
-bool py_isinstance(pyobj_t* target, pyobj_t* type);
+bool py_isinstance(const pyobj_t* target, const pyobj_t* type);

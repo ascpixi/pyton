@@ -1,13 +1,12 @@
 #include "opcodes.h"
 
 #include "sys/core.h"
-#include "rtl/stringop.h"
+#include "std/safety.h"
+#include "std/stringop.h"
 
-#define STACK_PUSH(x) stack[++(*stack_current)] = (x)
-
-#define OPERATION_PROLOG                          \
-    pyobj_t* left = stack[(*stack_current)--];    \
-    pyobj_t* right = stack[(*stack_current)--];   \
+#define OPERATION_PROLOG                               \
+    pyobj_t* left = NOT_NULL(STACK_POP_INDIRECT());    \
+    pyobj_t* right = NOT_NULL(STACK_POP_INDIRECT());   \
 
 #define OPERATION_EPILOG($method, $op)                                                  \
     pyobj_t* exception = NULL;                                                          \
@@ -18,11 +17,11 @@
 
 #define BOTH_OF_TYPE($type) (right->type == ($type) && left->type == ($type))
 
-#define INT_OPERATION($op)                                               \
-    if (BOTH_OF_TYPE(&py_type_int)) {                                    \
-        STACK_PUSH(py_alloc_int(right->as_int $op left->as_int));        \
-        return NULL;                                                     \
-    }                                                                    \
+#define INT_OPERATION($op)                                                       \
+    if (BOTH_OF_TYPE(&py_type_int)) {                                            \
+        STACK_PUSH_INDIRECT(py_alloc_int(right->as_int $op left->as_int));       \
+        return NULL;                                                             \
+    }                                                                            \
 
 static bool arbitrary_op(
     void** stack,
@@ -32,16 +31,21 @@ static bool arbitrary_op(
     pyobj_t* left,
     pyobj_t** exception
 ) {
-    pyobj_t* op_fn = py_get_attribute(right, attr_name);
-    if (op_fn != NULL && op_fn->type == &py_type_method) {
+    pyobj_t* op_fn;
+
+    if (
+        py_get_method_attribute(right, attr_name, &op_fn) &&
+        op_fn != NULL &&
+        op_fn->type == &py_type_method
+    ) {
         pyobj_t* args[] = { left };
-        pyreturn_t result = py_call(op_fn, 1, args, 0, NULL);
+        pyreturn_t result = py_call(op_fn, 1, args, 0, NULL, NULL);
 
         if (result.exception != NULL) {
             *exception = result.exception;
         }
         else {
-            STACK_PUSH(result.value);
+            STACK_PUSH_INDIRECT(result.value);
         }
 
         return true;

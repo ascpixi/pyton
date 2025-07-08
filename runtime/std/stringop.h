@@ -11,7 +11,7 @@ size_t strlen(const char* str);
 
 // Checks for equality between two strings. Similar to `strcmp`, but returns `true` if
 // the strings are equal, and `false` otherwise. 
-bool rtl_strequ(const char* str1, const char* str2);
+bool std_strequ(const char* str1, const char* str2);
 
 // Combines two strings into one.
-char* rtl_strconcat(const char* str1, const char* str2);
+char* std_strconcat(const char* str1, const char* str2);

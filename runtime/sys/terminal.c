@@ -1,7 +1,8 @@
 #include "terminal.h"
 
 #include "bootloader.h"
-#include "rtl/stringop.h"
+#include "std/stringop.h"
+#include "std/safety.h"
 #include <flanterm/flanterm.h>
 #include <flanterm/backends/fb.h>
 
@@ -39,6 +40,7 @@ void terminal_init(void) {
 }
 
 void terminal_println(const char* str) {
+    ENSURE_NOT_NULL(str);
     flanterm_write(global_terminal, str, strlen(str) + 1); // we add 1 to account for the \0
     terminal_newline();
 }

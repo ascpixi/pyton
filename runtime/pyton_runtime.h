@@ -8,3 +8,4 @@
 #include "init.h"
 #include "opcodes.h"
 #include "exceptions.h"
+#include "std/safety.h"

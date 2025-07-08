@@ -2,7 +2,7 @@
 
 #include "sys/core.h"
 #include "sys/terminal.h"
-#include "rtl/safety.h"
+#include "std/safety.h"
 #include "classes.h"
 #include "exceptions.h"
 
@@ -13,33 +13,27 @@ PY_DEFINE(py_builtin_build_class) {
     // translates into:
     //   C = __build_class__(<func>, 'C', A, B, metaclass=M, other=42, *more_bases, *more_kwds)
 
-    if (argc < 2) {
+    if (argc < 2)
         RAISE(TypeError, "__build_class__ accepts at least two arguments");
-    }
 
-    if (argc > 3) {
+    if (argc > 3)
         RAISE(TypeError, "multiple inheritence is not yet supported");
-    }
 
-    pyobj_t* body = argv[0];
-    pyobj_t* name = argv[1];
+    ENSURE_NOT_NULL(argv);
+
+    pyobj_t* body = argv[0]; // func
+    pyobj_t* name = argv[1]; // name
     
-    pyobj_t* base_class = NULL;
+    pyobj_t* base_class = argc == 3  ? argv[2] : &py_type_object;
+    
+    ENSURE_NOT_NULL(body);
+    ENSURE_NOT_NULL(name);
 
-    if (argc == 3) {
-        base_class = argv[2];
-    }
-
-    ENSURE_NOT_NULL(body, "py_builtin_build_class");
-    ENSURE_NOT_NULL(name, "py_builtin_build_class");
-
-    if (body->type != &py_type_function) {
+    if (body->type != &py_type_function)
         RAISE(TypeError, "__build_class__: func must be a function");
-    }
 
-    if (name->type != &py_type_str) {
+    if (name->type != &py_type_str)
         RAISE(TypeError, "__build_class__: name must be a string");
-    }
 
     // Class bodies are special-cased by the transpiler. All locals are actually
     // assigned to the class attribute table, e.g. for a class C:
@@ -51,8 +45,7 @@ PY_DEFINE(py_builtin_build_class) {
     // a hidden parameter that will serve as the object to assign locals as attributes to.
 
     pyobj_t* type = py_alloc_type(base_class);
-    pyobj_t* call_args[] = { type };
-    pyreturn_t result = py_call(body, 1, call_args, 0, NULL);
+    pyreturn_t result = py_call(body, 0, NULL, 0, NULL, type); // 'type' is 'self' here, the hidden parameter
     
     // We don't really care about the return value of the class body. It's usually None.
     if (result.exception != NULL)
@@ -77,7 +70,7 @@ PY_DEFINE(py_builtin_print) {
         sys_panic("More than one argument is not yet supported for print().");
     }
 
-    pyobj_t* value = argv[0];
+    pyobj_t* value = NOT_NULL(argv)[0];
     if (value->type != &py_type_str) {
         // TODO: Any kind of object should be accepted here.
         sys_panic("Expected a 'str' argument for print().");
@@ -86,9 +79,3 @@ PY_DEFINE(py_builtin_print) {
     terminal_println(value->as_str);
     return WITH_RESULT(&py_none);
 }
-
-CLASS(bytearray)
-    CLASS_ATTRIBUTES(bytearray)
-        // TODO: methods for bytearray
-    END_CLASS_ATTRIBUTES;
-DEFINE_BUILTIN_TYPE(bytearray, &py_type_object);

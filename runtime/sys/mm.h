@@ -1,6 +1,6 @@
 #pragma once
 
-#include "stddef.h"
+#include <stddef.h>
 
 // Represents a physical memory address.
 typedef size_t physaddr_t;

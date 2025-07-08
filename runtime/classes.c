@@ -1,10 +1,11 @@
 #include "classes.h"
 
+#include "std/safety.h"
 #include "sys/core.h"
 
 void py_verify_self_arg(pyobj_t* self, const pyobj_t* type) {
-    if (self == NULL)
-        sys_panic("The 'self' argument was NULL.");
+    ENSURE_NOT_NULL(self);
+    ENSURE_NOT_NULL(type);
     
     if (self->type == type)
         return;

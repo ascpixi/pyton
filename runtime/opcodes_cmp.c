@@ -1,25 +1,24 @@
 #include "opcodes.h"
 
 #include "sys/core.h"
-#include "rtl/stringop.h"
+#include "std/safety.h"
+#include "std/stringop.h"
 
-#define STACK_PUSH(x) stack[++(*stack_current)] = (x)
-
-#define COMPARE_PROLOG                            \
-    pyobj_t* left = stack[(*stack_current)--];    \
-    pyobj_t* right = stack[(*stack_current)--];   \
+#define COMPARE_PROLOG                                 \
+    pyobj_t* left = NOT_NULL(STACK_POP_INDIRECT());    \
+    pyobj_t* right = NOT_NULL(STACK_POP_INDIRECT());   \
 
 #define BOTH_OF_TYPE($type) (right->type == ($type) && left->type == ($type))
 
 #define INT_COMPARISON($op)                                              \
     if (BOTH_OF_TYPE(&py_type_int)) {                                    \
-        STACK_PUSH(AS_PY_BOOL(right->as_int $op left->as_int));          \
+        STACK_PUSH_INDIRECT(AS_PY_BOOL(right->as_int $op left->as_int)); \
         return NULL;                                                     \
     }                                                                    \
 
 #define FLOAT_COMPARISON($op)                                            \
     if (BOTH_OF_TYPE(&py_type_float)) {                                  \
-        STACK_PUSH(AS_PY_BOOL(right->as_float $op left->as_float));      \
+        STACK_PUSH_INDIRECT(AS_PY_BOOL(right->as_float $op left->as_float));      \
         return NULL;                                                     \
     }                                                                    \
 
@@ -31,18 +30,24 @@ static bool arbitrary_compare_side(
     pyobj_t** out_exception,
     int* stack_current
 ) {
-    pyobj_t* compare_fn = py_get_attribute(side1, attr_name);
-    if (compare_fn == NULL || compare_fn->type != &py_type_method)
+    pyobj_t* compare_fn;
+
+    if (
+        !py_get_method_attribute(side1, attr_name, &compare_fn) ||
+        compare_fn == NULL ||
+        compare_fn->type != &py_type_method
+    ) {
         return false;
+    }
 
     pyobj_t* args[] = { side2 };
 
-    pyreturn_t result = py_call(compare_fn, 1, args, 0, NULL);
+    pyreturn_t result = py_call(compare_fn, 1, args, 0, NULL, side1);
     if (result.exception != NULL) {
         *out_exception = result.exception;
     }
     else {
-        STACK_PUSH(result.value);
+        STACK_PUSH_INDIRECT(result.value);
     }
 
     return true;
@@ -71,7 +76,7 @@ pyobj_t* py_opcode_compare_equ(void** stack, int* stack_current, bool coerce_to_
     // FLOAT_COMPARISON(==);
 
     if (BOTH_OF_TYPE(&py_type_str)) {
-        STACK_PUSH(AS_PY_BOOL(rtl_strequ(right->as_str, left->as_str)));
+        STACK_PUSH_INDIRECT(AS_PY_BOOL(std_strequ(right->as_str, left->as_str)));
         return NULL;
     }
 
@@ -82,7 +87,7 @@ pyobj_t* py_opcode_compare_equ(void** stack, int* stack_current, bool coerce_to_
         return exception;
 
     // No __eq__ method on any of the objects! Check for identity instead.
-    STACK_PUSH(AS_PY_BOOL(left == right));
+    STACK_PUSH_INDIRECT(AS_PY_BOOL(left == right));
     return NULL;
 }
 
@@ -92,7 +97,7 @@ pyobj_t* py_opcode_compare_neq(void** stack, int* stack_current, bool coerce_to_
     // FLOAT_COMPARISON(!=);
 
     if (BOTH_OF_TYPE(&py_type_str)) {
-        STACK_PUSH(AS_PY_BOOL(!rtl_strequ(right->as_str, left->as_str)));
+        STACK_PUSH_INDIRECT(AS_PY_BOOL(!std_strequ(right->as_str, left->as_str)));
         return NULL;
     }
 
@@ -103,7 +108,7 @@ pyobj_t* py_opcode_compare_neq(void** stack, int* stack_current, bool coerce_to_
         return exception;
 
     // TODO: If no __ne__ method on any of the objects, invert __eq__ instead
-    STACK_PUSH(AS_PY_BOOL(left != right));
+    STACK_PUSH_INDIRECT(AS_PY_BOOL(left != right));
     return NULL;
 }
 

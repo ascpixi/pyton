@@ -3,6 +3,9 @@
 #include "sys/mm.h"
 #include "sys/terminal.h"
 
+static pyobj_t py_str_main_name = PY_STR_LITERAL("__name__");
+pyobj_t* KNOWN_GLOBAL(__name__) = &py_str_main_name;
+
 void sys_init(void) {
     mm_init();
     terminal_init();

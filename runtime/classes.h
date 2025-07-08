@@ -10,7 +10,7 @@
 // Equivalent to `DEFINE_TYPE`, but specialized for types that have names that may conflict
 // with C macro definitions. `$name` must be prefixed with `_`.
 #define DEFINE_TYPE_E($name, $intrinsic, $inherits_from)                              \
-    const pyobj_t py_type##$name = {                                                  \
+    pyobj_t py_type##$name = {                                                        \
         .type = &py_type_type,                                                        \
         .as_type = {                                                                  \
             .class_attributes = {                                                     \
@@ -22,7 +22,7 @@
             .base = ($inherits_from)                                                  \
         }                                                                             \
     };                                                                                \
-    const pyobj_t* pyglobal_##$name = &py_type##$name;                                \
+    pyobj_t* pyglobal_##$name = &py_type##$name;                                      \
 
 // Defines a Python type of name `$name`, leaving the attribute table undefined. The attribute
 // table's name is expected to be `py_type_<name>_attrs`, and its type is required to be
@@ -36,7 +36,11 @@
 
 // Equivalent to `DEFINE_INTRINSIC_TYPE`, but specialized for types that have names that may
 // conflict with C macro definitions. `$name` must be prefixed with `_`.
-#define DEFINE_INTRINSIC_TYPE_E($name) DEFINE_TYPE_E($name, true, NULL)
+#define DEFINE_INTRINSIC_TYPE_E($name) DEFINE_TYPE_E($name, true, &py_type_object)
+
+// Defines an intrinsic Python type classified as a root - an ultimate base class, which
+// does not inherit from `object`. There usually is only one such class - `object`.
+#define DEFINE_ROOT_TYPE($name) DEFINE_TYPE($name, true, NULL)
 
 // Defines an intrinsic Python type, the instances of which would not hold their own
 // attribute tables. See `DEFINE_TYPE` for more details.
