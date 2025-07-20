@@ -8,10 +8,3 @@ int strcmp(const char* str1, const char* str2);
 
 // Calculates the length of a zero-terminated string.
 size_t strlen(const char* str);
-
-// Checks for equality between two strings. Similar to `strcmp`, but returns `true` if
-// the strings are equal, and `false` otherwise. 
-bool std_strequ(const char* str1, const char* str2);
-
-// Combines two strings into one.
-char* std_strconcat(const char* str1, const char* str2);

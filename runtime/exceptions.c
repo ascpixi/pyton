@@ -16,7 +16,7 @@ CLASS(BaseException)
             RAISE(Exception, "exceptions accept at most one argument");
 
         if (argc == 1) {
-            py_set_attribute(NOT_NULL(self), "msg", NOT_NULL(argv)[0]);
+            py_set_attribute(NOT_NULL(self), STR("msg"), NOT_NULL(argv)[0]);
         }
 
         return WITH_RESULT(&py_none);
@@ -25,11 +25,11 @@ CLASS(BaseException)
     CLASS_METHOD(BaseException, __str__) {
         ENSURE_NOT_NULL(self);
 
-        pyobj_t* msg = py_get_attribute(self, "msg");
+        pyobj_t* msg = py_get_attribute(self, STR("msg"));
 
         if (msg == NULL) {
             // We might not have a message, e.g. `raise StopIteration()`
-            msg = NOT_NULL(py_get_attribute(self, "__name__"));
+            msg = NOT_NULL(py_get_attribute(self, STR("__name__")));
         }
 
         return WITH_RESULT(msg);

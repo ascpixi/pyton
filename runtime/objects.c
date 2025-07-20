@@ -1,6 +1,8 @@
 #include "objects.h"
+
 #include "functions.h"
 #include "classes.h"
+#include "std/string.h"
 #include "std/stringop.h"
 #include "std/safety.h"
 #include "std/tuple.h"
@@ -36,13 +38,13 @@ CLASS(object)
     CLASS_METHOD(object, __str__) {
         ENSURE_NOT_NULL(self);
 
-        pyobj_t* name = py_get_attribute(self, "__name__");
+        pyobj_t* name = py_get_attribute(self, STR("__name__"));
         if (name == NULL || name->type != &py_type_str)
             return WITH_RESULT(PY_STR("<unknown object>"));
 
-        char* first = std_strconcat("<", name->as_str);
-        char* full = std_strconcat(first, "object>");
-        mm_heap_free(first);
+        string_t first = std_strconcat(STR("<"), name->as_str);
+        string_t full = std_strconcat(first, STR("object>"));
+        mm_heap_free(first.str);
         
         pyobj_t* obj = mm_heap_alloc(sizeof(pyobj_t));
         obj->type = &py_type_str;
@@ -100,7 +102,7 @@ CLASS(str)
 
         pyobj_t* value = NOT_NULL(argv)[0];
         pyobj_t* method_str;
-        py_get_method_attribute(value, "__str__", &method_str);
+        py_get_method_attribute(value, STR("__str__"), &method_str);
 
         if (method_str == NULL || method_str->type != &py_type_function)
             return WITH_RESULT(PY_STR("<object>"));
@@ -138,7 +140,7 @@ CLASS(type)
         // overriden by the class. In most cases, we'll invoke the default __new__ implementation
         // on `type`. That'll give us an uninitialized empty object.
         pyobj_t* method_new;
-        ASSERT(py_get_method_attribute(self, "__new__", &method_new));
+        ASSERT(py_get_method_attribute(self, STR("__new__"), &method_new));
 
         // __new__ is a class method, not an instance method. First argument is the class.
         pyobj_t* obj = NOT_NULL(UNWRAP(py_call(method_new, argc, argv, kwargc, kwargv, self)));
@@ -146,7 +148,7 @@ CLASS(type)
         // If __new__() does not return an instance of cls, then the new instance's __init__() method will not be invoked.
         if (obj->type == self) {
             pyobj_t* method_init;
-            ASSERT(py_get_method_attribute(obj, "__init__", &method_init));
+            ASSERT(py_get_method_attribute(obj, STR("__init__"), &method_init));
 
             // We forward the arguments we got to __init__. So, if we get invoked with `A(a, b, c)`,
             // we'd do A.__init__(obj, a, b, c).
@@ -206,7 +208,7 @@ pyobj_t py_false = { .type = &py_type_bool, .as_bool = false };
 static pyobj_t* py_get_class_attribute(
     pyobj_t* target,
     pyobj_t* type,
-    const char* name,
+    string_t name,
     bool unbound_methods,
     bool* out_is_unbound
 ) {
@@ -247,7 +249,7 @@ static pyobj_t* py_get_class_attribute(
         if (!skip_get_call) {
             pyobj_t* get;
             if (
-                py_get_method_attribute(attr, "__get__", &get) &&
+                py_get_method_attribute(attr, STR("__get__"), &get) &&
                 get != NULL &&
                 get->type == &py_type_method
             ) {
@@ -282,11 +284,11 @@ static pyobj_t* py_get_class_attribute(
 // - `out_is_unbound`: set to `true` if the returned value is a method that wasn't bound (only set w/ `unbound_methods == true`)
 static pyobj_t* py_get_attribute_arbitrary(
     pyobj_t* target,
-    const char* name,
+    string_t name,
     bool unbound_methods,
     bool* out_is_unbound
 ) {
-    ENSURE_NOT_NULL(name);
+    ENSURE_STR_VALID(name);
     ENSURE_NOT_NULL(target);
     ENSURE_NOT_NULL(out_is_unbound);
 
@@ -337,7 +339,7 @@ static pyobj_t* py_get_attribute_arbitrary(
     return NULL;
 }
 
-bool py_get_method_attribute(pyobj_t* target, const char* name, pyobj_t** out_attr) {
+bool py_get_method_attribute(pyobj_t* target, string_t name, pyobj_t** out_attr) {
     ENSURE_NOT_NULL(out_attr);
 
     bool is_unbound;
@@ -345,13 +347,13 @@ bool py_get_method_attribute(pyobj_t* target, const char* name, pyobj_t** out_at
     return is_unbound;
 }
 
-pyobj_t* py_get_attribute(pyobj_t* target, const char* name) {
+pyobj_t* py_get_attribute(pyobj_t* target, string_t name) {
     bool _is_unbound;
     return py_get_attribute_arbitrary(target, name, false, &_is_unbound);
 }
 
-void py_set_attribute(pyobj_t* target, const char* name, pyobj_t* value) {
-    ENSURE_NOT_NULL(name);
+void py_set_attribute(pyobj_t* target, string_t name, pyobj_t* value) {
+    ENSURE_STR_VALID(name);
     ENSURE_NOT_NULL(target);
     ENSURE_NOT_NULL(value);
 
@@ -479,7 +481,7 @@ pyreturn_t py_call(
     // Thus, we do do `target->type`, which is effectively `type(A)`.
     pyobj_t* call_attr;
     if (
-        py_get_method_attribute(target->type, "__call__", &call_attr) &&
+        py_get_method_attribute(target->type, STR("__call__"), &call_attr) &&
         call_attr != NULL &&
         call_attr->type == &py_type_function
     ) {
@@ -489,20 +491,20 @@ pyreturn_t py_call(
     RAISE(TypeError, "attempted to call a non-callable object");
 }
 
-const char* py_stringify(pyobj_t* target) {
+string_t py_stringify(pyobj_t* target) {
     if (target == NULL)
-        return "<NULL>";
+        return STR("<NULL>");
 
     if (target == &py_none)
-        return "None";
+        return STR("None");
 
     pyobj_t* method_str;
-    if (!py_get_method_attribute(target, "__str__", &method_str))
-        return "(unknown object)";
+    if (!py_get_method_attribute(target, STR("__str__"), &method_str))
+        return STR("(unknown object)");
 
     pyreturn_t converted = py_call(method_str, 0, NULL, 0, NULL, target);
     if (converted.exception != NULL)
-        return "<error while stringifying>";
+        return STR("<error while stringifying>");
 
     ENSURE_NOT_NULL(converted.value);
 

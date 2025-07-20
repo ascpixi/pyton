@@ -1,6 +1,7 @@
 #include "opcodes.h"
 
 #include "sys/core.h"
+#include "std/string.h"
 #include "std/safety.h"
 #include "std/stringop.h"
 
@@ -25,7 +26,7 @@
 static bool arbitrary_compare_side(
     pyobj_t* side1,
     pyobj_t* side2,
-    const char* attr_name,
+    string_t attr_name,
     void** stack,
     pyobj_t** out_exception,
     int* stack_current
@@ -56,7 +57,7 @@ static bool arbitrary_compare_side(
 static bool arbitrary_compare(
     void** stack,
     int* stack_current,
-    const char* attr_name,
+    string_t attr_name,
     pyobj_t* right,
     pyobj_t* left,
     pyobj_t** out_exception
@@ -83,7 +84,7 @@ pyobj_t* py_opcode_compare_equ(void** stack, int* stack_current, bool coerce_to_
     // TODO: comparison between float and int
 
     pyobj_t* exception = NULL;
-    if (arbitrary_compare(stack, stack_current, "__eq__", right, left, &exception))
+    if (arbitrary_compare(stack, stack_current, STR("__eq__"), right, left, &exception))
         return exception;
 
     // No __eq__ method on any of the objects! Check for identity instead.
@@ -104,7 +105,7 @@ pyobj_t* py_opcode_compare_neq(void** stack, int* stack_current, bool coerce_to_
     // TODO: comparison between float and int
 
     pyobj_t* exception = NULL;
-    if (arbitrary_compare(stack, stack_current, "__ne__", right, left, &exception))
+    if (arbitrary_compare(stack, stack_current, STR("__ne__"), right, left, &exception))
         return exception;
 
     // TODO: If no __ne__ method on any of the objects, invert __eq__ instead
@@ -120,7 +121,7 @@ pyobj_t* py_opcode_compare_lt(void** stack, int* stack_current, bool coerce_to_b
     // TODO: comparison between float and int
 
     pyobj_t* exception = NULL;
-    if (arbitrary_compare(stack, stack_current, "__lt__", right, left, &exception))
+    if (arbitrary_compare(stack, stack_current, STR("__lt__"), right, left, &exception))
         return exception;
 
     return NEW_EXCEPTION_INLINE(TypeError, "'<' not supported between two instances of the given objects");
@@ -134,7 +135,7 @@ pyobj_t* py_opcode_compare_lte(void** stack, int* stack_current, bool coerce_to_
     // TODO: comparison between float and int
 
     pyobj_t* exception = NULL;
-    if (arbitrary_compare(stack, stack_current, "__le__", right, left, &exception))
+    if (arbitrary_compare(stack, stack_current, STR("__le__"), right, left, &exception))
         return exception;
 
     return NEW_EXCEPTION_INLINE(TypeError, "'<=' not supported between two instances of the given objects");
@@ -148,7 +149,7 @@ pyobj_t* py_opcode_compare_gt(void** stack, int* stack_current, bool coerce_to_b
     // TODO: comparison between float and int
 
     pyobj_t* exception = NULL;
-    if (arbitrary_compare(stack, stack_current, "__gt__", right, left, &exception))
+    if (arbitrary_compare(stack, stack_current, STR("__gt__"), right, left, &exception))
         return exception;
 
     return NEW_EXCEPTION_INLINE(TypeError, "'>' not supported between two instances of the given objects");
@@ -162,7 +163,7 @@ pyobj_t* py_opcode_compare_gte(void** stack, int* stack_current, bool coerce_to_
     // TODO: comparison between float and int
 
     pyobj_t* exception = NULL;
-    if (arbitrary_compare(stack, stack_current, "__ge__", right, left, &exception))
+    if (arbitrary_compare(stack, stack_current, STR("__ge__"), right, left, &exception))
         return exception;
 
     return NEW_EXCEPTION_INLINE(TypeError, "'>=' not supported between two instances of the given objects");

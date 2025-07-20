@@ -10,7 +10,7 @@
 
 #define OPERATION_EPILOG($method, $op)                                                  \
     pyobj_t* exception = NULL;                                                          \
-    arbitrary_op(stack, stack_current, $method, right, left, &exception);               \
+    arbitrary_op(stack, stack_current, STR($method), right, left, &exception);          \
     if (exception != NULL)                                                              \
         return exception;                                                               \
     return NEW_EXCEPTION_INLINE(TypeError, "unsupported operand type(s) for " $op);     \
@@ -26,7 +26,7 @@
 static bool arbitrary_op(
     void** stack,
     int* stack_current,
-    const char* attr_name,
+    string_t attr_name,
     pyobj_t* right,
     pyobj_t* left,
     pyobj_t** exception

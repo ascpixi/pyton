@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include "symbols.h"
 #include "std/vector.h"
+#include "std/string.h"
 #include "sys/mm.h"
 
 // Represents a symbol - an object associated with a name. Symbols may represent attributes,
@@ -57,7 +58,7 @@ struct pyobj {
         bool as_bool;
         
         // Valid when `type` points to `py_type_str`.
-        const char* as_str;
+        string_t as_str;
 
         // Valid when `type` points to `py_type_int`.
         int64_t as_int;
@@ -87,7 +88,7 @@ struct pyobj {
 
 struct symbol {
     pyobj_t* value;
-    const char* name;
+    string_t name;
 };
 
 struct pyreturn {
@@ -195,7 +196,7 @@ pyobj_t* py_alloc_type(pyobj_t* base);
 pyobj_t* py_alloc_object(pyobj_t* type);
 
 // Defines the structure of a `pyobj_t` that defines a string literal.
-#define PY_STR_LITERAL($content) { .type = &py_type_str, .as_str = ($content) }
+#define PY_STR_LITERAL($content) { .type = &py_type_str, .as_str = STR($content) }
 
 // Defines the structure of a `pyobj_t` that defines an integer constant.
 #define PY_INT_CONSTANT($num) { .type = &py_type_int, .as_int = ($num) }
@@ -224,11 +225,11 @@ pyreturn_t py_call(
 );
 
 // Calls `__str__` on the given object, with no parameters.
-const char* py_stringify(pyobj_t* target);
+string_t py_stringify(pyobj_t* target);
 
 // Tries to find the value associated with the attribute with the given name on the
 // given object. If no such attribute exists, returns `NULL` instead.
-pyobj_t* py_get_attribute(pyobj_t* target, const char* name);
+pyobj_t* py_get_attribute(pyobj_t* target, string_t name);
 
 // Equivalent to `py_get_attribute`, but if the attribute's value is a `function`,
 // its `__get__` method is NOT called, returning the unbound version of the method.
@@ -236,10 +237,10 @@ pyobj_t* py_get_attribute(pyobj_t* target, const char* name);
 //
 // This is mostly used by the special-cased `LOAD_ATTR` op-code variant, which avoids
 // a `method` object allocation.
-bool py_get_method_attribute(pyobj_t* target, const char* name, pyobj_t** out_attr);
+bool py_get_method_attribute(pyobj_t* target, string_t name, pyobj_t** out_attr);
 
 // Sets the attribute with the name `name` on the given object to `value`.
-void py_set_attribute(pyobj_t* target, const char* name, pyobj_t* value);
+void py_set_attribute(pyobj_t* target, string_t name, pyobj_t* value);
 
 // Checks if `target` is an instance of `type`.
 bool py_isinstance(const pyobj_t* target, const pyobj_t* type);

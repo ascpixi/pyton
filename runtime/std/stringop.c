@@ -30,21 +30,3 @@ size_t strlen(const char* str) {
     return p - str;
 }
 
-bool std_strequ(const char* s1, const char* s2) {
-    return strcmp(s1, s2) == 0;
-}
-
-char* std_strconcat(const char* s1, const char* s2) {
-    ENSURE_NOT_NULL(s1);
-    ENSURE_NOT_NULL(s2)
-
-    size_t s1_len = strlen(s1);
-    size_t s2_len = strlen(s2);
-    size_t result_len = s1_len + s2_len + 1;
-    char* result = mm_heap_alloc(result_len);
-
-    memcpy(result, s1, s1_len);
-    memcpy(result + s1_len, s2, s2_len);
-    result[result_len - 1] = '\0';
-    return result;
-}

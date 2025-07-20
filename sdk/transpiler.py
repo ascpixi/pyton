@@ -322,7 +322,7 @@ class TranslationUnit:
                     if is_entrypoint:
                         body.append(f'{self.mangle_global(name)} = {STACK_POP};')
                     elif is_class_body:
-                        body.append(f'py_set_attribute(self, "{name}", {STACK_POP});')
+                        body.append(f'py_set_attribute(self, STR("{name}"), {STACK_POP});')
                     else:
                         body.append(f'loc_{fn.co_names[instr.arg]} = {STACK_POP};')
                 case "STORE_FAST":
@@ -332,7 +332,7 @@ class TranslationUnit:
                     if not is_class_body:
                         body.append(f"loc_{name} = (pyobj_t*)({STACK_POP});")
                     else:
-                        body.append(f'py_set_attribute(self, "{name}", {STACK_POP});')
+                        body.append(f'py_set_attribute(self, STR("{name}"), {STACK_POP});')
                 case "STORE_ATTR":
                     assert instr.arg is not None
                     name = fn.co_names[instr.arg]

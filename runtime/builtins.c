@@ -76,6 +76,6 @@ PY_DEFINE(py_builtin_print) {
         sys_panic("Expected a 'str' argument for print().");
     }
 
-    terminal_println(value->as_str);
+    terminal_println(value->as_str.str);
     return WITH_RESULT(&py_none);
 }

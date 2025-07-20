@@ -112,7 +112,7 @@
     {                                                               \
         pyobj_t* obj = (pyobj_t*)(STACK_POP());                     \
         pyobj_t* value = (pyobj_t*)(STACK_POP());                   \
-        py_set_attribute(obj, $name, value);                        \
+        py_set_attribute(obj, STR($name), value);                   \
     }
 
 // Replaces `STACK[-1]` with `getattr(STACK[-1], $name)`.
@@ -120,7 +120,7 @@
 #define PY_OPCODE_LOAD_ATTR($name)                                   \
     {                                                                \
         pyobj_t* attr = (pyobj_t*)(STACK_PEEK());                    \
-        STACK_PEEK() = NOT_NULL(py_get_attribute(attr, ($name)));    \
+        STACK_PEEK() = NOT_NULL(py_get_attribute(attr, STR($name))); \
     }
 
 // Attempts to load a method named `$name` from the `STACK[-1]` object.
@@ -135,7 +135,7 @@
     {                                                                               \
         pyobj_t* owner = (pyobj_t*)(STACK_POP());                                   \
         pyobj_t* attr;                                                              \
-        bool is_unbound = py_get_method_attribute(owner, ($name), &attr);           \
+        bool is_unbound = py_get_method_attribute(owner, STR($name), &attr);        \
         STACK_PUSH() = is_unbound ? owner : NULL;                                   \
         STACK_PUSH() = attr;                                                        \
     }                     
@@ -188,7 +188,7 @@
 // Locals are equivalent to `self` attributes in class bodies.
 #define PY_OPCODE_LOAD_NAME_CLASS($name)                     \
     STACK_PUSH() = COALESCE_2(                               \
-        py_get_attribute(self, #$name),                      \
+        py_get_attribute(self, STR(#$name)),                 \
         KNOWN_GLOBAL($name)                                  \
     );
 

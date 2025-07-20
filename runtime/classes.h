@@ -57,7 +57,7 @@
 #define CLASS_ATTRIBUTES_E($name, $name_display)                                  \
     static pyobj_t py_type##$name##_name = PY_STR_LITERAL($name_display);         \
     symbol_t py_type##$name##_attrs_initial[] = {                                 \
-        { .name = "__name__", .value = &py_type##$name##_name },                  \
+        { .name = STR("__name__"), .value = &py_type##$name##_name },             \
 
 // Begins the class attribute list for type `$name`.
 #define CLASS_ATTRIBUTES($name) CLASS_ATTRIBUTES_E(_##$name, #$name)
@@ -68,7 +68,7 @@
 // Equivalent to `HAS_CLASS_METHOD`, but specialized for types that have names that may
 // conflict with C macro definitions. `$name` must be prefixed with `_`.
 #define HAS_CLASS_METHOD_E($type, $name)                     \
-    { .name = #$name, .value = &py_type##$type##_method_##$name }
+    { .name = STR(#$name), .value = &py_type##$type##_method_##$name }
 
 // Specifies that a type method should be included in a type attribute list defined
 // by `CLASS_ATTRIBUTES`.
