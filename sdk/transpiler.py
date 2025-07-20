@@ -37,13 +37,120 @@ class TranslationUnit:
         self.known_names: set[str] = set()
         "Stores all known names that may be either globals or locals."
 
+        self.known_consts: dict[Any, str] = {}
+        "Maps constants to their global C symbol names."
+
+        self.next_const_id = 1
+        "The ID to assign to the next known constant."
+
+        self.const_definitions: list[str] = []
+        "C definitions of known constants."
+
     def mangle(self, fn: CodeType):
         return "pyfn__" + sanitize_identifier(fn.co_qualname)
     
     def mangle_global(self, name: str):
         return "pyglobal__" + sanitize_identifier(name)
 
-    def translate(self, fn: CodeType, is_entrypoint = False, is_class_body = False):
+    def get_or_create_const(
+        self,
+        const,
+        source_bytecode: dis.Bytecode,
+        source_fn: CodeType,
+        source_path: str
+    ):
+        """
+        Gets or creates the known constant object for `const`, and returns its C symbol
+        name. Recognized types for `const` are the following:
+        - `bool`,
+        - `NoneType`,
+        - `str`,
+        - `int`,
+        - `float`,
+        - `tuple`,
+        - `code`.
+        """
+        if const in self.known_consts:
+            return self.known_consts[const]
+        
+        if type(const) is bool:
+            return "py_true" if const else "py_false";
+        elif const is None:
+            return "py_none"
+
+        name = f"py_const_{self.next_const_id}"
+        self.next_const_id += 1
+        self.known_consts[const] = name
+
+        if type(const) is str:
+            self.const_definitions.append(f'static pyobj_t {name} = {{ .type = &py_type_str, .as_str = STR("{const.replace("\n", "\\n").replace("\r", "")}") }};')
+        elif type(const) is int:
+            self.const_definitions.append(f"static pyobj_t {name} = {{ .type = &py_type_int, .as_int = {const} }};")
+        elif type(const) is float:
+            self.const_definitions.append(f"static pyobj_t {name} = {{ .type = &py_type_float, .as_float = {const} }};")
+        elif type(const) is tuple:
+            items: list[str] = []
+            for item in const:
+                items.append(self.get_or_create_const(item, source_bytecode, source_fn, source_path))
+            
+            self.const_definitions.append(
+                f"static pyobj_t* {name}_elements[] = " + "{ " +
+                ", ".join(f"&{item_name}" for item_name in items) +
+                " };"
+            )
+
+            self.const_definitions.append("static pyobj_t " + name + " = {")
+            self.const_definitions.append("    .type = &py_type_tuple,")
+            self.const_definitions.append("    .as_list = {")
+            self.const_definitions.append(f"        .elements = {name}_elements,")
+            self.const_definitions.append(f"        .length = {len(const)},")
+            self.const_definitions.append(f"        .capacity = {len(const)}")
+            self.const_definitions.append("    }")
+            self.const_definitions.append("};")
+        elif type(const).__name__ == "code":
+            # If we have a 'code' constant, this means that this is a callable.
+            code: CodeType = const
+
+            # We first need to check if this constant is loaded as the first code
+            # constant before a __build_class__ invocation. If it is, then we
+            # classify it as a class body.
+            searching_for_build_class = True
+            code_is_class_body = False
+
+            for instr in source_bytecode:
+                if searching_for_build_class:
+                    if instr.opname == "LOAD_BUILD_CLASS":
+                        searching_for_build_class = False
+
+                    continue
+
+                # We've encountered a LOAD_BUILD_CLASS instruction, now we
+                # check if any LOAD_CONST's appear that reference this code constant
+                if instr.opname != "LOAD_CONST":
+                    continue
+
+                if instr.arg is not None and source_fn.co_consts[instr.arg] == const:
+                    code_is_class_body = True
+                    break
+
+            target_fn = self.translate(code, source_path, False, code_is_class_body)
+            self.const_definitions.append(f"static pyobj_t {name} = {{ .type = &py_type_function, .as_function = &{target_fn} }};")
+        else:
+            error(f"unknown constant type '{type(const).__name__}'!")
+            error(f"the value of the constant is {const}")
+            error(f"the full disassembly of the target function is displayed below")
+            print(dis.dis(source_fn))
+            raise Exception(f"Unknown constant type: {type(const).__name__}")
+
+        return name
+
+    def translate(
+        self,
+        fn: CodeType,
+        source_path: str,
+        is_entrypoint = False,
+        is_class_body = False
+    ):
         """
         Transpiles the given code fragment into a C function, returning its mangled name.
         The function itself can be retrieved via `self.transpiled`. If the function was already
@@ -75,74 +182,18 @@ class TranslationUnit:
         bytecode = dis.Bytecode(fn)
         exc_table: list[ExceptionTableEntry] = bytecode.exception_entries
 
-        def place_const(body: list[str], const: Any, name: str):
-            if type(const) is str:
-                body.append(f'static pyobj_t {name} = {{ .type = &py_type_str, .as_str = "{const.replace("\n", "\\n").replace("\r", "")}" }};')
-            elif type(const) is int:
-                body.append(f"static pyobj_t {name} = {{ .type = &py_type_int, .as_int = {const} }};")
-            elif type(const) is float:
-                body.append(f"static pyobj_t {name} = {{ .type = &py_type_float, .as_float = {const} }};")
-            elif type(const) is bool:
-                body.append(f"#define {name} (py_true)" if const else f"#define {name} (py_false)")
-                defined_preprocessor_syms.append(name)
-            elif type(const) is tuple:
-                for i, item in enumerate(const):
-                    place_const(body, item, f"{name}_item_{i}")
-                
-                body.append(
-                    f"static pyobj_t* {name}_elements[] = " + "{ " +
-                    ", ".join(f"&{name}_item_{i}" for i in range(len(const))) +
-                    " };"
-                )
+        # imports = get_all_imports(bytecode, fn)
+        # for imprt in imports:
+        #     path = resolve_import(source_path, imprt.name)
+        #     module_fn = compile(open(path, "r").read(), os.path.basename(path), "exec")
 
-                body.append("static pyobj_t " + name + " = {")
-                body.append("    .type = &py_type_tuple,")
-                body.append("    .as_list = {")
-                body.append(f"        .elements = {name}_elements,")
-                body.append(f"        .length = {len(const)},")
-                body.append(f"        .capacity = {len(const)}")
-                body.append("    }")
-                body.append("};")
-            elif type(const).__name__ == "code":
-                # If we have a 'code' constant, this means that this is a callable.
-                code: CodeType = const
-
-                # We first need to check if this constant is loaded as the first code
-                # constant before a __build_class__ invocation. If it is, then we
-                # classify it as a class body.
-                searching_for_build_class = True
-                code_is_class_body = False
-
-                for instr in bytecode:
-                    if searching_for_build_class:
-                        if instr.opname == "LOAD_BUILD_CLASS":
-                            searching_for_build_class = False
-
-                        continue
-
-                    # We've encountered a LOAD_BUILD_CLASS instruction, now we
-                    # check if any LOAD_CONST's appear that reference this code constant
-                    if instr.opname != "LOAD_CONST":
-                        continue
-
-                    if instr.arg is not None and fn.co_consts[instr.arg] == const:
-                        code_is_class_body = True
-                        break
-
-                target_fn = self.translate(code, False, code_is_class_body)
-                body.append(f"static pyobj_t {name} = {{ .type = &py_type_function, .as_function = &{target_fn} }};")
-            elif const is None:
-                body.append(f"#define {name} (py_none)")
-                defined_preprocessor_syms.append(name)
-            else:
-                error(f"unknown constant type '{type(const).__name__}'!")
-                error(f"the value of the constant is {const}")
-                error(f"the full disassembly of the target function is displayed below")
-                print(dis.dis(fn))
-                raise Exception(f"Unknown constant type: {type(const).__name__}")
+        #     if type(imprt) == FullImport:
+        #         self.translate()
 
         for i, const in enumerate(fn.co_consts):
-            place_const(body, const, f"const_{i}")
+            const_sym = self.get_or_create_const(const, bytecode, fn, source_path)
+            body.append(f"#define const_{i} ({const_sym})")
+            defined_preprocessor_syms.append(f"const_{i}")
             
         body.append("// (constants end)")
         body.append("")
@@ -511,6 +562,10 @@ class TranslationUnit:
             lines.append(f"    pyobj_t* {self.mangle_global(name)} = NULL; // global '{name}'")
             lines.append(f"#endif")
             lines.append("")
+
+        lines.append("// Known constants")
+        lines.extend(self.const_definitions)
+        lines.append("")
 
         if self.entrypoint is not None:
             lines.append(f"DEFINE_ENTRYPOINT({self.entrypoint});")
