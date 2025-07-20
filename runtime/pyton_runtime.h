@@ -7,5 +7,6 @@
 #include "functions.h"
 #include "init.h"
 #include "opcodes.h"
+#include "fragments.h"
 #include "exceptions.h"
 #include "std/safety.h"

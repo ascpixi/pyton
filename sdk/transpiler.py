@@ -1,11 +1,14 @@
+import os
 import re
 import dis
 import inspect
 import textwrap
 from types import CodeType
 from typing import Protocol, Any
+from dataclasses import dataclass
 
 from .bytecode import *
+from .importing import FullImport, SelectiveImport, get_all_imports, resolve_import
 from .util import error, flatten
 
 def c_bool(x: bool):
@@ -14,12 +17,33 @@ def c_bool(x: bool):
 def sanitize_identifier(x: str):
     return re.sub(r"[^_A-Za-z0-9]", "__", x)
 
+def wellknown_global_macro(name: str):
+    return f"PY_GLOBAL_{sanitize_identifier(name)}_WELLKNOWN"
+
 class ExceptionTableEntry(Protocol):
     start: int
     end: int
     target: int
     depth: int
     lasti: bool
+
+@dataclass
+class TranspiledFunction:
+    body: str
+    origin: CodeType
+
+class Module:
+    "Represents data exclusive to a single module."
+
+    def __init__(self, name: str):
+        self.name = name
+        "The name of the module, as defined by the import name (e.g. for `import re`, this will be `'re'`)."
+
+        self.known_names: set[str] = set()
+        "Stores all known names that may be either globals or locals."
+
+        self.transpiled: dict[str, TranspiledFunction] = {}
+        "Stores mappings between mangled function names and their C function bodies."
 
 class TranslationUnit:
     """
@@ -28,15 +52,6 @@ class TranslationUnit:
     """
 
     def __init__(self):
-        self.transpiled: dict[str, str] = {}
-        "Stores mappings between mangled function names and their C function bodies."
-
-        self.entrypoint: str | None = None
-        "The mangled name of the function that is the entrypoint (main function) of the kernel."
-
-        self.known_names: set[str] = set()
-        "Stores all known names that may be either globals or locals."
-
         self.known_consts: dict[Any, str] = {}
         "Maps constants to their global C symbol names."
 
@@ -46,18 +61,33 @@ class TranslationUnit:
         self.const_definitions: list[str] = []
         "C definitions of known constants."
 
-    def mangle(self, fn: CodeType):
-        return "pyfn__" + sanitize_identifier(fn.co_qualname)
+        self.modules: dict[str, Module] = {}
+        "All defined modules."
+
+    def all_transpiled(self):
+        "Returns a dictionary of all transpiled functions across all modules."
+        return { k: v for d in (x.transpiled for x in self.modules.values()) for k, v in d.items() }
+
+    def mangle(self, fn: CodeType, module: str):
+        return f"pyfn__{module}_{sanitize_identifier(fn.co_qualname)}" 
     
-    def mangle_global(self, name: str):
-        return "pyglobal__" + sanitize_identifier(name)
+    def mangle_global(self, name: str, module: str):
+        if module == "__main__":
+            # Globals under the __main__ module are considered "canonical".
+            # This doesn't really match Python's behavior 1:1 (e.g. if we overwrite `print`
+            # in the main module, imports will also get the overwrite), but it should be
+            # fine for now...
+            return "pyglobal__" + sanitize_identifier(name)
+        
+        return f"pyglobal__{module}_{sanitize_identifier(name)}"
 
     def get_or_create_const(
         self,
         const,
         source_bytecode: dis.Bytecode,
         source_fn: CodeType,
-        source_path: str
+        source_path: str,
+        source_module: str
     ):
         """
         Gets or creates the known constant object for `const`, and returns its C symbol
@@ -91,7 +121,7 @@ class TranslationUnit:
         elif type(const) is tuple:
             items: list[str] = []
             for item in const:
-                items.append(self.get_or_create_const(item, source_bytecode, source_fn, source_path))
+                items.append(self.get_or_create_const(item, source_bytecode, source_fn, source_path, source_module))
             
             self.const_definitions.append(
                 f"static pyobj_t* {name}_elements[] = " + "{ " +
@@ -133,7 +163,7 @@ class TranslationUnit:
                     code_is_class_body = True
                     break
 
-            target_fn = self.translate(code, source_path, False, code_is_class_body)
+            target_fn = self.translate(code, source_path, source_module, code_is_class_body)
             self.const_definitions.append(f"static pyobj_t {name} = {{ .type = &py_type_function, .as_function = &{target_fn} }};")
         else:
             error(f"unknown constant type '{type(const).__name__}'!")
@@ -148,7 +178,7 @@ class TranslationUnit:
         self,
         fn: CodeType,
         source_path: str,
-        is_entrypoint = False,
+        module: str,
         is_class_body = False
     ):
         """
@@ -156,25 +186,31 @@ class TranslationUnit:
         The function itself can be retrieved via `self.transpiled`. If the function was already
         transpiled before, this function does nothing.
 
-        `is_entrypoint` should be set to `True` if the fragment is supposed to be ran after
-        system startup.
-        
         `is_class_body` should be set to `True` if the fragment corresponds to a class body,
         and will be passed into `builtins.__build_class__`.
         """
-        mangled_name = self.mangle(fn)
-        if mangled_name in self.transpiled:
+        mangled_name = self.mangle(fn, module)
+        if mangled_name in self.all_transpiled():
             return mangled_name
+    
+        is_module = fn.co_name == "<module>"
+        if is_module:
+            assert not is_class_body
+            self.modules[module] = Module(module)
 
         defined_preprocessor_syms = ["PY__EXCEPTION_HANDLER_LABEL"]
 
         body = [
-            f"// Function {fn.co_qualname}, declared on line {fn.co_firstlineno}, class body: {'yes' if is_class_body else 'no'}",
+            f"// Function {fn.co_qualname} of module {module}, declared on line {fn.co_firstlineno}, class body: {'yes' if is_class_body else 'no'}",
             f"void* stack[{fn.co_stacksize + 1}] = {{}};",
             f"int stack_current = -1;",
             f"pyobj_t* caught_exception = NULL;",
             f"#define PY__EXCEPTION_HANDLER_LABEL L_uncaught_exception"
         ]
+
+        if is_module:
+            body.append("")
+            body.append(f"MODULE_PROLOGUE({module});")
 
         body.append("")
         body.append("// (constants start)")
@@ -182,26 +218,61 @@ class TranslationUnit:
         bytecode = dis.Bytecode(fn)
         exc_table: list[ExceptionTableEntry] = bytecode.exception_entries
 
-        # imports = get_all_imports(bytecode, fn)
-        # for imprt in imports:
-        #     path = resolve_import(source_path, imprt.name)
-        #     module_fn = compile(open(path, "r").read(), os.path.basename(path), "exec")
+        imports = get_all_imports(bytecode, fn)
+        for imprt in imports:
+            path = resolve_import(source_path, imprt.name)
 
-        #     if type(imprt) == FullImport:
-        #         self.translate()
+            # This function is the <module> function of the imported module.
+            # It will execute all code defined in the module, and ultimately, set up
+            # its globals, which we can import from.
+            module_body = self.translate(
+                fn = compile(open(path, "r").read(), os.path.basename(path), "exec"),
+                source_path = path,
+                module = imprt.name
+            )
+
+            if type(imprt) is FullImport:
+                # Full imports use LOAD_ATTR, which means that the imported module becomes
+                # an object. For example:
+                #       LOAD_NAME                0 (abc)
+                #       LOAD_ATTR                2 (aaa)
+                # In order to minimize the runtime overhead, we special-case this. In a module,
+                # when we do:
+                #       IMPORT_NAME              0 (abc)
+                #       STORE_NAME               0 (abc)
+                # We associate 'abc' with a special "module token" in the module that imported
+                # 'abc'. Then, if we were to load 'xyz' from 'abc', we'd do the following:
+                #       (
+                #           pyglobal__abc.type == &py_type_moduletoken &&
+                #           pyglobal__abc.as_moduletoken.id == <ID>
+                #       ) ? pyglobal__abc_xyz : py_get_attribute(pyglobal__abc, "xyz")
+                # This avoid an attribute lookup.
+                error("full imports (e.g. import module) are not yet supported!")
+                error("try a selective import (e.g. from module import abc) instead.")
+                raise Exception("Full imports are not yet supported.")
+            elif type(imprt) is SelectiveImport:
+                # Selective imports are simpler. The selected globals of the importee are
+                # assigned to the globals of the importer.
+                body.append(f"// from {imprt.name} import {', '.join(f'({x} as {y})' for x, y in imprt.targets)}")
+                body.append(f"{module_body}(NULL, 0, NULL, 0, NULL);")
+                
+                for from_target, to_target in imprt.targets:
+                    body.append(f"{self.mangle_global(to_target, module)} = {self.mangle_global(from_target, imprt.name)};")
+
+        import_ranges = [(x.start, x.end) for x in imports]
 
         for i, const in enumerate(fn.co_consts):
-            const_sym = self.get_or_create_const(const, bytecode, fn, source_path)
+            const_sym = self.get_or_create_const(const, bytecode, fn, source_path, module)
             body.append(f"#define const_{i} ({const_sym})")
             defined_preprocessor_syms.append(f"const_{i}")
             
         body.append("// (constants end)")
         body.append("")
 
-        # Locals behave differently in both the entry-point and class body scope.
-        # In the entry-point, locals are equivalent to globals.
+        # Locals behave differently in both the module and class body scope.
+        # In modules, locals are equivalent to globals.
         # In class bodies, locals are equivalent to `self`.
-        if not is_entrypoint and not is_class_body:
+        if not is_module and not is_class_body:
             body.append("int argc_all = argc + (( self != NULL ? 1 : 0 ));")
 
             for name in fn.co_varnames:
@@ -249,7 +320,7 @@ class TranslationUnit:
         # First, "a" would be found in the global symbol table and printed out. Then, it
         # would get defined in the local symbol table, and we'd print the local instead.
         for name in fn.co_names:
-            self.known_names.add(name)
+            self.modules[module].known_names.add(name)
 
         body.append("")
         body.append("// (function body start)")
@@ -266,7 +337,7 @@ class TranslationUnit:
 
         prev_handler_region: str | None = None
 
-        for instr in bytecode:
+        for instr_idx, instr in enumerate(bytecode):
             body.append(f"// {instr.offset}: {str(instr).strip()}")
 
             label = label_by_offset(instr.offset)
@@ -301,6 +372,12 @@ class TranslationUnit:
             exc_depth = exc_info.depth if exc_info is not None else 0
             exc_lasti = instr.offset if exc_info is not None else -1
 
+            if any(instr_idx >= r[0] and instr_idx <= r[1] for r in import_ranges):
+                # If this instruction is inside an import bytecode range, we skip it.
+                # We treat these ranges specially - imports are always ran at the beginning
+                # of the functions, disregarding their order.
+                continue
+
             # Important to mention: stack_current points to the stack slot that will be
             # popped next. When pushing, it needs to be incremented BEFORE writing to the
             # slot.
@@ -316,16 +393,16 @@ class TranslationUnit:
                     assert instr.arg is not None
                     name = fn.co_names[instr.arg]
 
-                    if is_entrypoint:
+                    if is_module:
                         # Locals are equivalent to globals in the entrypoint.
-                        body.append(f'{STACK_PUSH} = {self.mangle_global(name)};')
+                        body.append(f'{STACK_PUSH} = {self.mangle_global(name, module)};')
                     elif is_class_body:
                         # Locals are equivalent to `self` attributes in class bodies.
                         body.append(f"PY_OPCODE_LOAD_NAME_CLASS({name});")
                     else:
                         # If loc_{name} is NULL, that means that the local of that name isn't defined, so we
                         # search in the global symbol table and the builtins.
-                        body.append(f'{STACK_PUSH} = loc_{name} != null ? loc_{name} : {self.mangle_global(name)}')
+                        body.append(f'{STACK_PUSH} = loc_{name} != null ? loc_{name} : {self.mangle_global(name, module)}')
                 case "LOAD_CONST":
                     assert instr.arg is not None
                     const = fn.co_consts[instr.arg]
@@ -334,12 +411,16 @@ class TranslationUnit:
                     assert instr.arg is not None
                     name = fn.co_names[instr.arg >> 1]
 
+                    body.append(f'{STACK_PUSH} = {self.mangle_global(name, module)};')
+                
                     # Changed in version 3.11: If the low bit of namei is set, then a
                     # NULL is pushed to the stack before the global variable.
+                    #
+                    # ^ the official docs say 'before', but it does seem like we need
+                    # to push the NULL *after* the global.
                     if (instr.arg & 1) == 1:
                         body.append(f"stack[++stack_current] = NULL;")
 
-                    body.append(f'{STACK_PUSH} = {self.mangle_global(name)};')
                 case "LOAD_FAST":
                     assert instr.arg is not None
                     
@@ -370,8 +451,8 @@ class TranslationUnit:
                     assert instr.arg is not None
                     name = fn.co_names[instr.arg]
 
-                    if is_entrypoint:
-                        body.append(f'{self.mangle_global(name)} = {STACK_POP};')
+                    if is_module:
+                        body.append(f'{self.mangle_global(name, module)} = {STACK_POP};')
                     elif is_class_body:
                         body.append(f'py_set_attribute(self, STR("{name}"), {STACK_POP});')
                     else:
@@ -486,7 +567,7 @@ class TranslationUnit:
                     else:
                         raise Exception(f"Unknown SET_FUNCTION_ATTRIBUTE flag: 0x{instr.arg:X}")
                 case "LOAD_BUILD_CLASS":
-                    body.append(f"{STACK_PUSH} = {self.mangle_global("__build_class__")};")
+                    body.append(f"{STACK_PUSH} = {self.mangle_global("__build_class__", module)};")
                 case "POP_EXCEPT":
                     # TODO: not sure what the difference between this and POP_TOP is?
                     body.append(f"stack_current--;")
@@ -531,15 +612,15 @@ class TranslationUnit:
         for sym in defined_preprocessor_syms:
             body.append(f"#undef {sym}")
 
-        self.transpiled[mangled_name] = "\n".join(body)
-
-        if is_entrypoint:
-            self.entrypoint = mangled_name
-
+        self.modules[module].transpiled[mangled_name] = TranspiledFunction("\n".join(body), fn)
         return mangled_name
 
-    def transpile(self):
-        "Merges all compiled functions into one C file."
+    def transpile(self, entrypoint: str | None = None):
+        """
+        Merges all compiled functions into one C file. `entrypoint` defines the mangled
+        symbol name of the function to invoke as an entry-point - this is usually the
+        `<module>` function of the `__main__` module.
+        """
         lines: list[str] = []
 
         lines.append("// <auto-generated>")
@@ -552,31 +633,59 @@ class TranslationUnit:
         lines.append("")
 
         lines.append("// Transpiled function declarations")
-        for fn_name in self.transpiled.keys():
+        for fn_name in self.all_transpiled().keys():
             lines.append(f"PY_DEFINE({fn_name});")
 
         lines.append("")
-        lines.append("// Known global names")
-        for name in self.known_names:
-            lines.append(f"#ifndef PY_GLOBAL_{sanitize_identifier(name)}_WELLKNOWN")
-            lines.append(f"    pyobj_t* {self.mangle_global(name)} = NULL; // global '{name}'")
-            lines.append(f"#endif")
+        lines.append("// Module-specific definitions/declarations")
+        for module in self.modules.values():
+            lines.append(f"// State for module {module.name}")
+            lines.append(f"bool MODULE_INIT_STATE({module.name}) = false;")
+            lines.append("")
+
+            lines.append(f"// Known global names for {module.name}")
+            for name in module.known_names:
+                if module.name == "__main__":
+                    lines.append(f"#ifndef {wellknown_global_macro(name)}")
+
+                lines.append(f"pyobj_t* {self.mangle_global(name, module.name)} = NULL; // global '{name}'")
+                
+                if module.name == "__main__":
+                    lines.append("#endif")
+                    lines.append("")
+
             lines.append("")
 
         lines.append("// Known constants")
         lines.extend(self.const_definitions)
         lines.append("")
 
-        if self.entrypoint is not None:
-            lines.append(f"DEFINE_ENTRYPOINT({self.entrypoint});")
+        if entrypoint is not None:
+            lines.append(f"DEFINE_ENTRYPOINT({entrypoint});")
             lines.append("")
 
         lines.append("// Transpiled function implementations")
-        for fn_name, fn_body in self.transpiled.items():
-            lines.append("PY_DEFINE(" + fn_name + ") {")
-            lines.append(textwrap.indent(fn_body, "    "))
-            lines.append("}")
-            lines.append("")
+        for module in self.modules.values():
+            for fn_name, fn_transpiled in module.transpiled.items():
+                fn_body = fn_transpiled.body
+
+                lines.append("PY_DEFINE(" + fn_name + ") {")
+
+                if module.name != "__main__" and fn_transpiled.origin.co_name == "<module>":
+                    # If this is not the main module, then we need to copy all well-known
+                    # globals from the main module scope to our own scope - so that when
+                    # we resolve "print" to "pyglobal__mymodule_print", we get "pyglobal__print"
+                    # if it hasn't been overwritten yet.
+                    #
+                    # We only do this from the module entry-point functions.
+                    for name in module.known_names:
+                        lines.append(f"#ifdef {wellknown_global_macro(name)}")
+                        lines.append(f"    {self.mangle_global(name, module.name)} = {self.mangle_global(name, "__main__")};")
+                        lines.append( "#endif")
+
+                lines.append(textwrap.indent(fn_body, "    "))
+                lines.append("}")
+                lines.append("")
 
         return "\n".join(lines)
     

@@ -2,22 +2,9 @@
 
 #include "objects.h"
 #include "symbols.h"
+#include "fragments.h"
 #include "exceptions.h"
 #include "std/safety.h"
-
-// Provides the stack item at position `-$i`. For example, `STACK_ITEM(1)` returns
-// the top of the stack (`STACK[-1]`).
-#define STACK_ITEM($i) stack[stack_current - ($i) + 1]
-
-#define STACK_POP()  stack[stack_current--]
-#define STACK_PUSH() stack[++stack_current]
-#define STACK_PEEK() stack[stack_current]
-
-// Pushes to the stack, assuming `stack` is a `void**` and `stack_current` is a `int*`.
-#define STACK_PUSH_INDIRECT(x) stack[++(*stack_current)] = (x)
-
-// Pops from the stack, assuming `stack` is a `void**` and `stack_current` is a `int*`.
-#define STACK_POP_INDIRECT() stack[(*stack_current)--]
 
 // Performs a `CALL` on the given stack, reading the parameters and callable from the stack,
 // and pushing the return value to the stack.

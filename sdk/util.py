@@ -4,6 +4,14 @@ from typing import TypeVar
 
 T = TypeVar("T")
 
+def unwrap(val: T | None) -> T:
+    "Raises an exception if `val` is `None` - otherwise, returns `val`."
+
+    if val is None:
+        raise Exception()
+    
+    return val
+
 def error(msg: str):
     print(f"error: {msg}")
 
