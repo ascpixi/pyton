@@ -68,6 +68,10 @@ extern pyobj_t* KNOWN_GLOBAL(BaseException);
 extern pyobj_t py_type_Exception;
 extern pyobj_t* KNOWN_GLOBAL(Exception);
 
+#define PY_GLOBAL_NameError_WELLKNOWN
+extern pyobj_t py_type_NameError;
+extern pyobj_t* KNOWN_GLOBAL(NameError);
+
 #define PY_GLOBAL_StopIteration_WELLKNOWN
 extern pyobj_t py_type_StopIteration;
 extern pyobj_t* KNOWN_GLOBAL(StopIteration);

@@ -1,0 +1,3 @@
+recursive-include pyton/runtime *
+recursive-include pyton/lib *
+recursive-include pyton/resource *

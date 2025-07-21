@@ -1,6 +1,5 @@
 {
-    "C_Cpp.codeAnalysis.clangTidy.checks.disabled": [
-        "clang-analyzer-core.NullDereference",
-        "clang-diagnostic-incompatible-pointer-types-discards-qualifiers"
-    ]
+    "python.analysis.diagnosticSeverityOverrides": {
+        "reportAttributeAccessIssue": "information"
+    }
 }

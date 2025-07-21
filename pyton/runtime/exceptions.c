@@ -50,7 +50,7 @@ DEFINE_EXCEPTION(Exception, BaseException);
 // DEFINE_EXCEPTION(ImportError, Exception);
 // DEFINE_EXCEPTION(LookupError, Exception);
 // DEFINE_EXCEPTION(MemoryError, Exception);
-// DEFINE_EXCEPTION(NameError, Exception);
+DEFINE_EXCEPTION(NameError, Exception);
 // DEFINE_EXCEPTION(OSError, Exception);
 // DEFINE_EXCEPTION(ReferenceError, Exception);
 // DEFINE_EXCEPTION(RuntimeError, Exception);

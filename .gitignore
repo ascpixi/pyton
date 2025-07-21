@@ -1,3 +1,4 @@
 /artifacts
 *.pyc
 .gdbinit
+*.egg-info

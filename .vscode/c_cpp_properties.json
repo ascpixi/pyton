@@ -41,9 +41,9 @@
         {
             "name": "Development on Windows",
             "includePath": [
-                "${workspaceFolder}/runtime",
-                "${workspaceFolder}/lib/freestnd-c-hdrs",
-                "${workspaceFolder}/lib"
+                "${workspaceFolder}/pyton/runtime",
+                "${workspaceFolder}/pyton/lib/freestnd-c-hdrs",
+                "${workspaceFolder}/pyton/lib"
             ],
             "defines": [
                 "_DEBUG",

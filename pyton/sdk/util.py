@@ -1,6 +1,6 @@
 import os
 import shutil
-from typing import TypeVar
+from typing import TypeVar, Callable, Iterable
 
 T = TypeVar("T")
 
@@ -27,3 +27,6 @@ def copy_many(root: str, file_list: list[tuple[str, str]]):
 
 def flatten(xss: list[list[T]]):
     return [x for xs in xss for x in xs]
+
+def find(collection: Iterable[T], predicate: Callable[[T], bool]):
+    return next((x for x in collection if predicate(x)), None)

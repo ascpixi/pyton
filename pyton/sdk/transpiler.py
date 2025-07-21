@@ -9,7 +9,7 @@ from dataclasses import dataclass
 
 from .bytecode import *
 from .importing import FullImport, SelectiveImport, get_all_imports, resolve_import
-from .util import error, flatten
+from .util import error, find, flatten
 
 def c_bool(x: bool):
     return "true" if x else "false"
@@ -358,9 +358,9 @@ class TranslationUnit:
                     
                 break
 
-            exc_info = next(
-                (x for x in exc_table if (x.start <= instr.offset and x.end >= instr.offset)),
-                None
+            exc_info = find(
+                exc_table,
+                lambda x: x.start <= instr.offset and x.end >= instr.offset
             )
 
             if exc_info is None and prev_handler_region is not None:
@@ -395,14 +395,14 @@ class TranslationUnit:
 
                     if is_module:
                         # Locals are equivalent to globals in the entrypoint.
-                        body.append(f'{STACK_PUSH} = {self.mangle_global(name, module)};')
+                        body.append(f'{STACK_PUSH} = NOT_NULL({self.mangle_global(name, module)});')
                     elif is_class_body:
                         # Locals are equivalent to `self` attributes in class bodies.
                         body.append(f"PY_OPCODE_LOAD_NAME_CLASS({name});")
                     else:
                         # If loc_{name} is NULL, that means that the local of that name isn't defined, so we
                         # search in the global symbol table and the builtins.
-                        body.append(f'{STACK_PUSH} = loc_{name} != null ? loc_{name} : {self.mangle_global(name, module)}')
+                        body.append(f'{STACK_PUSH} = loc_{name} != null ? loc_{name} : NOT_NULL({self.mangle_global(name, module)});')
                 case "LOAD_CONST":
                     assert instr.arg is not None
                     const = fn.co_consts[instr.arg]
