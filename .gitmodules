@@ -1,0 +1,10 @@
+[submodule "pyton/lib/limine"]
+	path = pyton/lib/limine
+	url = https://github.com/limine-bootloader/limine
+	branch = v9.x-binary
+[submodule "pyton/lib/flanterm"]
+	path = pyton/lib/flanterm
+	url = https://codeberg.org/mintsuki/flanterm
+[submodule "pyton/lib/freestnd-c-hdrs-0bsd"]
+	path = pyton/lib/freestnd-c-hdrs-0bsd
+	url = https://codeberg.org/osdev/freestnd-c-hdrs-0bsd
