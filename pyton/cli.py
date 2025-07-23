@@ -35,7 +35,7 @@ def build_command(args: argparse.Namespace):
     kernel_binary = compile_and_link(
         kernel_source_file,
         os.path.join(package_root, "runtime"),
-        os.path.join(package_root, "lib/freestnd-c-hdrs"),
+        os.path.join(package_root, "lib/freestnd-c-hdrs/include"),
         os.path.join(package_root, "lib"),
         args.artifacts,
         args.optimize

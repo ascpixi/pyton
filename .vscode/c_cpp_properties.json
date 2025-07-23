@@ -4,7 +4,7 @@
             "name": "Development on Linux",
             "includePath": [
                 "${workspaceFolder}/runtime",
-                "${workspaceFolder}/lib/freestnd-c-hdrs",
+                "${workspaceFolder}/lib/freestnd-c-hdrs-0bsd/include",
                 "${workspaceFolder}/lib"
             ],
             "defines": [
@@ -42,7 +42,7 @@
             "name": "Development on Windows",
             "includePath": [
                 "${workspaceFolder}/pyton/runtime",
-                "${workspaceFolder}/pyton/lib/freestnd-c-hdrs",
+                "${workspaceFolder}/pyton/lib/freestnd-c-hdrs-0bsd/include",
                 "${workspaceFolder}/pyton/lib"
             ],
             "defines": [

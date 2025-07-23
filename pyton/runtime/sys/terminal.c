@@ -3,8 +3,8 @@
 #include "bootloader.h"
 #include "std/stringop.h"
 #include "std/safety.h"
-#include <flanterm/flanterm.h>
-#include <flanterm/backends/fb.h>
+#include <flanterm/src/flanterm.h>
+#include <flanterm/src/flanterm_backends/fb.h>
 
 typedef struct flanterm_context flanterm_context_t;
 
