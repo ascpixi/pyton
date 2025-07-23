@@ -116,8 +116,8 @@ def compile_and_link(
     ], check = True)
 
     dependencies = [
-        "flanterm/flanterm.c",
-        "flanterm/backends/fb.c"
+        "flanterm/src/flanterm.c",
+        "flanterm/src/flanterm_backends/fb.c"
     ]
 
     built_dependencies: list[str] = []
