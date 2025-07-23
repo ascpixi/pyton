@@ -41,14 +41,10 @@ CLASS(object)
         pyobj_t* name = py_get_attribute(self, STR("__name__"));
         if (name == NULL || name->type != &py_type_str)
             return WITH_RESULT(PY_STR("<unknown object>"));
-
-        string_t first = std_strconcat(STR("<"), name->as_str);
-        string_t full = std_strconcat(first, STR("object>"));
-        mm_heap_free(first.str);
         
         pyobj_t* obj = mm_heap_alloc(sizeof(pyobj_t));
         obj->type = &py_type_str;
-        obj->as_str = full;
+        obj->as_str = std_strconcat(STR("<"), name->as_str, STR(" object>"));
         return WITH_RESULT(obj);
     }
 

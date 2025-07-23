@@ -20,15 +20,29 @@ bool std_strequ(string_t s1, string_t s2) {
     return true;
 }
 
-string_t std_strconcat(string_t s1, string_t s2) {
-    ENSURE_STR_VALID(s1);
-    ENSURE_STR_VALID(s2);
+string_t std_strconcat_array(const string_t* strings, int n) {
+    if (n == 0)
+        return STR("");
 
-    int result_len = s1.length + s2.length + 1;
+    ENSURE_NOT_NULL(strings);
+    ASSERT(n > 0);
+
+    int result_len = 1; // null terminator
+    for (int i = 0; i < n; i++) {
+        result_len += strings[i].length;
+    }
+
     char* result = mm_heap_alloc(result_len);
 
-    memcpy(result, s1.str, s1.length);
-    memcpy(result + s1.length, s2.str, s2.length);
+    int pos = 0;
+    for (int i = 0; i < n; i++) {
+        string_t current = strings[i];
+        memcpy(result + pos, current.str, current.length);
+
+        pos += current.length;
+    }
+
+    ASSERT(pos == result_len - 1); // we've added up all of the string lengths
     result[result_len - 1] = '\0';
     
     return (string_t) { .str = result, .length = result_len - 1 };
