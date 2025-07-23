@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from .bytecode import *
 from .importing import FullImport, SelectiveImport, get_all_imports, resolve_import
 from .util import error, find, flatten
+from .simplification import simplify_bytecode
 
 def c_bool(x: bool):
     return "true" if x else "false"
@@ -259,7 +260,7 @@ class TranslationUnit:
                 for from_target, to_target in imprt.targets:
                     body.append(f"{self.mangle_global(to_target, module)} = {self.mangle_global(from_target, imprt.name)};")
 
-        import_ranges = [(x.start, x.end) for x in imports]
+        ignore_ranges = [(x.start, x.end) for x in imports] + simplify_bytecode(bytecode)
 
         for i, const in enumerate(fn.co_consts):
             const_sym = self.get_or_create_const(const, bytecode, fn, source_path, module)
@@ -372,10 +373,7 @@ class TranslationUnit:
             exc_depth = exc_info.depth if exc_info is not None else 0
             exc_lasti = instr.offset if exc_info is not None else -1
 
-            if any(instr_idx >= r[0] and instr_idx <= r[1] for r in import_ranges):
-                # If this instruction is inside an import bytecode range, we skip it.
-                # We treat these ranges specially - imports are always ran at the beginning
-                # of the functions, disregarding their order.
+            if any(instr_idx >= r[0] and instr_idx <= r[1] for r in ignore_ranges):
                 continue
 
             # Important to mention: stack_current points to the stack slot that will be
