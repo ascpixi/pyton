@@ -567,7 +567,7 @@ class TranslationUnit:
                     else:
                         raise Exception(f"Unknown SET_FUNCTION_ATTRIBUTE flag: 0x{instr.arg:X}")
                 case "LOAD_BUILD_CLASS":
-                    body.append(f"{STACK_PUSH} = {self.mangle_global("__build_class__", module)};")
+                    body.append(f"{STACK_PUSH} = {self.mangle_global("__build_class__", "__main__")};")
                 case "POP_EXCEPT":
                     # TODO: not sure what the difference between this and POP_TOP is?
                     body.append(f"stack_current--;")
