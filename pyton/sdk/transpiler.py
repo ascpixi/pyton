@@ -219,7 +219,7 @@ class TranslationUnit:
         bytecode = dis.Bytecode(fn)
         exc_table: list[ExceptionTableEntry] = bytecode.exception_entries
 
-        imports = get_all_imports(bytecode, fn)
+        imports = get_all_imports(bytecode)
         for imprt in imports:
             path = resolve_import(source_path, imprt.name)
 

@@ -26,11 +26,13 @@ class SelectiveImport(Import):
     targets: list[tuple[str, str]]
     "A list of globals to import from the module, in the form of `(origin, name)`."
 
-def get_all_imports(bytecode: dis.Bytecode, fn: CodeType):
+def get_all_imports(bytecode: dis.Bytecode):
     """
     Scans the bytecode for all recognized import sequences. If `IMPORT_NAME` is used,
     but with an unrecognized bytecode sequence, an exception is thrown.
     """
+
+    fn = bytecode.codeobj
 
     # Imports can ONLY appear at the very top of the function, without any conditionals
     # allowed. This limitation is exclusive to Pyton, mainly because we're AOT-compiling
