@@ -1,5 +1,7 @@
 #pragma once
 
+#include "exceptions.h"
+
 // This header file specifies fragments used from transpiled code.
 // This does not include opcode related fragments - see opcodes.h for those.
 
@@ -25,3 +27,9 @@
     if (MODULE_INIT_STATE($name))                                       \
         return WITH_RESULT(&py_none);                                   \
     MODULE_INIT_STATE($name) = true;
+
+#define MARSHALLED_BOOL($x)   WITH_RESULT(($x) ? &py_true : &py_false)
+#define MARSHALLED_INT($x)    WITH_RESULT(py_alloc_int((int64_t)ret))
+#define MARSHALLED_FLOAT($x)  WITH_RESULT(py_alloc_float((double)ret))
+#define MARSHALLED_STR($x)    WITH_RESULT(py_alloc_str(ret))
+

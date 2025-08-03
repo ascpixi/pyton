@@ -391,6 +391,20 @@ pyobj_t* py_alloc_int(int64_t x) {
     return obj;
 }
 
+pyobj_t* py_alloc_float(double x) {
+    pyobj_t* obj = mm_heap_alloc(sizeof(pyobj_t));
+    obj->type = &py_type_float;
+    obj->as_float = x;
+    return obj;
+}
+
+pyobj_t* py_alloc_str(string_t x) {
+    pyobj_t* obj = mm_heap_alloc(sizeof(pyobj_t));
+    obj->type = &py_type_str;
+    obj->as_str = x;
+    return obj;
+}
+
 pyobj_t* py_alloc_function(py_fnptr_callable_t callable) {
     pyobj_t* obj = mm_heap_alloc(sizeof(pyobj_t));
     obj->type = &py_type_function;

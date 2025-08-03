@@ -11,6 +11,7 @@ from .bytecode import *
 from .importing import FullImport, SelectiveImport, get_all_imports, resolve_import
 from .util import error, find, flatten
 from .simplification import simplify_bytecode
+from .interop import ExternSpec, get_all_externs
 
 def c_bool(x: bool):
     return "true" if x else "false"
@@ -64,6 +65,8 @@ class TranslationUnit:
 
         self.modules: dict[str, Module] = {}
         "All defined modules."
+
+        self.externs: list[ExternSpec]
 
     def all_transpiled(self):
         "Returns a dictionary of all transpiled functions across all modules."
@@ -218,8 +221,10 @@ class TranslationUnit:
 
         bytecode = dis.Bytecode(fn)
         exc_table: list[ExceptionTableEntry] = bytecode.exception_entries
-
+        
+        externs = get_all_externs(bytecode)
         imports = get_all_imports(bytecode)
+        
         for imprt in imports:
             path = resolve_import(source_path, imprt.name)
 

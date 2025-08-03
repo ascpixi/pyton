@@ -3,6 +3,8 @@ import shutil
 from typing import TypeVar, Callable, Iterable
 
 T = TypeVar("T")
+K = TypeVar("K")
+V = TypeVar("V")
 
 def unwrap(val: T | None) -> T:
     "Raises an exception if `val` is `None` - otherwise, returns `val`."
@@ -30,3 +32,7 @@ def flatten(xss: list[list[T]]):
 
 def find(collection: Iterable[T], predicate: Callable[[T], bool]):
     return next((x for x in collection if predicate(x)), None)
+
+def omit(x: dict[K, V], target: K):
+    "Returns a dictionary with every item except the one that has a key equal to `target`."
+    return { k: v for k, v in x.items() if k != target }

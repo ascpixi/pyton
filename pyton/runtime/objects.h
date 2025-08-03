@@ -180,6 +180,12 @@ extern pyobj_t py_false;
 // Converts a C integer into a Python one, allocating it on the heap.
 pyobj_t* py_alloc_int(int64_t x);
 
+// Converts a C floating-point value into a Python one, allocating it on the heap.
+pyobj_t* py_alloc_float(double x);
+
+// Creates a heap-allocated Python wrapper over the given string.
+pyobj_t* py_alloc_str(string_t x);
+
 // Creates a function wrapper over the given callable.
 pyobj_t* py_alloc_function(py_fnptr_callable_t callable);
 
