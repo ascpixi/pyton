@@ -3,9 +3,9 @@
         {
             "name": "Development on Linux",
             "includePath": [
-                "${workspaceFolder}/runtime",
-                "${workspaceFolder}/lib/freestnd-c-hdrs-0bsd/include",
-                "${workspaceFolder}/lib"
+                "${workspaceFolder}/pyton/runtime",
+                "${workspaceFolder}/pyton/lib/freestnd-c-hdrs-0bsd/include",
+                "${workspaceFolder}/pyton/lib"
             ],
             "defines": [
                 "_DEBUG",
@@ -16,6 +16,44 @@
             "cStandard": "c17",
             "cppStandard": "c++17",
             "intelliSenseMode": "linux-gcc-x64",
+            "compilerArgs": [
+                "-Wall",
+                "-Wno-unknown-pragmas",
+                "-Wextra",
+                "-Wno-unused-parameter",
+                "-fanalyzer",
+                "-Wnull-dereference",
+                "-masm=intel",
+                "-O2",
+                "-m64",
+                "-fno-stack-protector",
+                "-fno-stack-check",
+                "-mno-80387",
+                "-mno-mmx",
+                "-mno-sse",
+                "-mno-sse2",
+                "-ffreestanding",
+                "-nostdlib",
+                "-g"
+            ],
+            "forcedInclude": ["${workspaceFolder}/.vscode/intellisense.h"]
+        },
+        {
+            "name": "Development on macOS",
+            "includePath": [
+                "${workspaceFolder}/pyton/runtime",
+                "${workspaceFolder}/pyton/lib/freestnd-c-hdrs-0bsd/include",
+                "${workspaceFolder}/pyton/lib"
+            ],
+            "defines": [
+                "_DEBUG",
+                "UNICODE",
+                "_UNICODE"
+            ],
+            "compilerPath": "/opt/homebrew/bin/gcc-13",
+            "cStandard": "c17",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "gcc-x64",
             "compilerArgs": [
                 "-Wall",
                 "-Wno-unknown-pragmas",
