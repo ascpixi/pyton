@@ -2,3 +2,4 @@
 *.pyc
 .gdbinit
 *.egg-info
+.DS_Store
