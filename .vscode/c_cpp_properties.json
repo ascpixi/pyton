@@ -50,7 +50,7 @@
                 "UNICODE",
                 "_UNICODE"
             ],
-            "compilerPath": "/opt/homebrew/bin/gcc-13",
+            "compilerPath": "/opt/homebrew/bin/x86_64-elf-gcc",
             "cStandard": "c17",
             "cppStandard": "c++17",
             "intelliSenseMode": "gcc-x64",
