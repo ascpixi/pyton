@@ -36,3 +36,18 @@ def find(collection: Iterable[T], predicate: Callable[[T], bool]):
 def omit(x: dict[K, V], target: K):
     "Returns a dictionary with every item except the one that has a key equal to `target`."
     return { k: v for k, v in x.items() if k != target }
+
+def list_executables_on_path():
+    """
+    Finds all executable binaries on the PATH environment variables (i.e. ones that can be
+    invoked by just their name, without needing their full absolute paths).
+    """
+
+    paths = os.environ["PATH"].split(os.path.pathsep)
+    executables: list[str] = []
+    for path in filter(os.path.isdir, paths):
+        for file in os.listdir(path):
+            if os.access(os.path.join(path, file), os.X_OK):
+                executables.append(file)
+
+    return executables

@@ -1,7 +1,9 @@
 import os
+import re
 import glob
 import shutil
-from .util import copy_many
+import platform
+from .util import copy_many, list_executables_on_path
 from subprocess import run
 
 def path_to_libname(path: str):
@@ -27,6 +29,46 @@ COMMON_GCC_FLAGS = [
     "-fno-omit-frame-pointer"
 ]
 
+def _find_gcc():
+    def is_real(name: str):
+        invocation = run([name, "-v"], capture_output = True)
+        return invocation.returncode == 0 and "clang version" not in invocation.stderr.decode()
+    
+    def find_matching(pattern: str):
+        regex = re.compile(pattern)
+        versions = sorted((x for x in list_executables_on_path() if regex.match(x)), reverse = True)
+        for ver in versions:
+            if is_real(ver):
+                return ver
+            
+        return None
+    
+    # On ARM64 machines, gcc may only support ARM64. If we have a specialized GCC install
+    # for x86-64, use that.
+    if platform.machine() == "arm64" and is_real("x86_64-elf-gcc"):
+        return "x86_64-elf-gcc"
+
+    if is_real("gcc"):
+        return "gcc"
+
+    # Some platforms (namely, macOS) alias gcc to point to clang for some... questionable
+    # reasons. We catch that here, and fallback to gcc-<version>. We try to use the most recent
+    # version.
+    real = find_matching(r"^gcc-[0-9]{2}$")
+    if real is not None:
+        return real
+
+    raise Exception("Could not find GCC on your machine.")
+
+def _find_ar():
+    if platform.machine() == "arm64" and "x86_64-elf-ar" in list_executables_on_path():
+        return "x86_64-elf-ar"
+    
+    return "ar"
+
+GCC_NAME = _find_gcc()
+AR_NAME = _find_ar()
+
 def compile_runtime(
     output_path: str,
     root: str,
@@ -51,7 +93,7 @@ def compile_runtime(
         print(f"({i + 1}/{len(source_files)}) > {file} -> {out}")
 
         run([
-            "gcc",
+            GCC_NAME,
             "-Wall", "-Wno-unknown-pragmas", "-Wextra", "-Wno-unused-parameter", "-Wnull-dereference",
             "-fanalyzer",
             "-masm=intel",
@@ -66,7 +108,7 @@ def compile_runtime(
             "-o", out
         ], check = True)
 
-    run(["ar", "rcs", output_path, *object_files]).check_returncode()
+    run([AR_NAME, "rcs", output_path, *object_files]).check_returncode()
     print(f"(ok) runtime built and written to {output_path}")
 
 def compile_and_link(
@@ -93,7 +135,7 @@ def compile_and_link(
     print(f"(...) compiling kernel... {filename} -> {kernel_obj_file}")
 
     run([
-        "gcc",
+        GCC_NAME,
         "-Wall",
         "-Wextra",
         "-std=gnu17",
@@ -128,9 +170,10 @@ def compile_and_link(
         
         print(f"({i}/{len(dependencies)}) {dep} -> {out_path}")
         run([
-            "gcc",
+            GCC_NAME,
             "-Wall", "-Wno-unknown-pragmas", "-Wextra", "-Wno-unused-parameter",
             "-masm=intel",
+            "-fno-PIC",
             "-O2",
             "-m64",
             *COMMON_GCC_FLAGS,
@@ -146,7 +189,7 @@ def compile_and_link(
     print(f"(...) linking kernel... -> {kernel_binary}")
 
     run([
-        "gcc",
+        GCC_NAME,
         "-Wl,-m,elf_x86_64",
         "-Wl,--build-id=none",
         "-nostdlib",
